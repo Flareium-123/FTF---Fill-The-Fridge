@@ -23,7 +23,6 @@ public class TrapItem extends Item {
             maxShelfLife,
             1,
             1,
-            false,
             warningPhrase
         );
     }

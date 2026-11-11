@@ -103,6 +103,19 @@ public class Tray extends GameObject {
         }
     }
 
+    public void addBonusTimeToCategory(ItemCategory category, float seconds) {
+        for (Item item : activeItems) {
+            if (item.getCategory() == category) {
+                item.addBonusTime(seconds);
+            }
+        }
+        for (Item item : pendingQueue) {
+            if (item.getCategory() == category) {
+                item.addBonusTime(seconds);
+            }
+        }
+    }
+
     public void revealAllTraps() {
         for (Item item : activeItems) {
             if (item.isTrap()) {
@@ -113,6 +126,28 @@ public class Tray extends GameObject {
             if (item.isTrap()) {
                 item.setRevealedTrap(true);
             }
+        }
+    }
+
+    public void revealNextTrap() {
+        for (Item item : activeItems) {
+            if (item.isTrap() && !item.isRevealedTrap()) {
+                item.setRevealedTrap(true);
+                return;
+            }
+        }
+        for (Item item : pendingQueue) {
+            if (item.isTrap() && !item.isRevealedTrap()) {
+                item.setRevealedTrap(true);
+                return;
+            }
+        }
+    }
+
+    public void addBonusTimeToMostUrgent(float seconds) {
+        Item urgent = findMostUrgentItem();
+        if (urgent != null) {
+            urgent.addBonusTime(seconds);
         }
     }
 

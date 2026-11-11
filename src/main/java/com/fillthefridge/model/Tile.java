@@ -30,8 +30,6 @@ public class Tile {
     public void refreshState() {
         if (occupyingItem == null) {
             state = TileState.EMPTY;
-        } else if (occupyingItem.isContaminated()) {
-            state = TileState.CONTAMINATED;
         } else if (occupyingItem.isTrap()) {
             state = TileState.TRAP_OCCUPIED;
         } else if (occupyingItem.isConfirmed()) {

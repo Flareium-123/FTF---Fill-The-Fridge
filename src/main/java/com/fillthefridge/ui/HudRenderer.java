@@ -10,9 +10,11 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.Align;
 import com.fillthefridge.assets.AssetManager;
 import com.fillthefridge.items.Item;
 import com.fillthefridge.model.ActivePowerUps;
+import com.fillthefridge.model.Fridge;
 import com.fillthefridge.model.GameState;
 import com.fillthefridge.model.PlacementResult;
 import com.fillthefridge.model.PlayerLives;
@@ -20,6 +22,7 @@ import com.fillthefridge.model.TrashBin;
 import com.fillthefridge.model.Tray;
 import com.fillthefridge.util.GridPosition;
 import com.fillthefridge.util.GridSize;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,11 +75,11 @@ public class HudRenderer {
             return;
         }
 
-        float slotW = 192f;
+        float slotW = Math.min(192f, (tray.getWidth() - 18f * (count - 1)) / count);
         float slotH = 152f;
         float gap = 18f;
         float totalW = count * slotW + (count - 1) * gap;
-        float startX = 640f - totalW * 0.5f;
+        float startX = tray.getX() + (tray.getWidth() - totalW) * 0.5f;
         float slotY = 14f;
 
         for (int i = 0; i < count; i++) {
@@ -97,13 +100,16 @@ public class HudRenderer {
     }
 
     public void renderHudAndTray(
-        ShapeRenderer shapeRenderer,
-        SpriteBatch batch,
-        AssetManager assetManager,
-        GameState gameState,
-        GridPosition hoverGridPos,
-        float mouseX,
-        float mouseY
+            ShapeRenderer shapeRenderer,
+            SpriteBatch batch,
+            AssetManager assetManager,
+            GameState gameState,
+            GridPosition hoverGridPos,
+            float mouseX,
+            float mouseY,
+            int undosUntilLifeLoss,
+            String undoKeyLabel,
+            String stageObjective
     ) {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -119,10 +125,12 @@ public class HudRenderer {
         shapeRenderer.end();
 
         batch.begin();
-        renderTopBarTextAndIcons(batch, assetManager, gameState);
+        renderTopBarTextAndIcons(batch, assetManager, gameState, stageObjective);
         renderTrashBinSpriteAndText(batch, assetManager, gameState.getTrashBin());
         renderTrayItemsAndTimers(batch, assetManager, gameState.getTray());
-        renderSideActionButtonsText(batch, assetManager, gameState, hoverGridPos);
+        renderSideActionButtonsText(
+            batch, assetManager, gameState, hoverGridPos, undosUntilLifeLoss, undoKeyLabel
+        );
         if (bannerTimer > 0f && bannerMessage != null && !bannerMessage.isEmpty()) {
             renderToastBannerText(batch, assetManager);
         }
@@ -135,31 +143,32 @@ public class HudRenderer {
     }
 
     private void renderTopBarShapes(ShapeRenderer shapeRenderer, float mouseX, float mouseY) {
-        shapeRenderer.setColor(0.09f, 0.16f, 0.28f, 0.92f);
+        shapeRenderer.setColor(0.035f, 0.065f, 0.10f, 0.80f);
         shapeRenderer.rect(0f, 652f, 1280f, 68f);
 
-        shapeRenderer.setColor(0.18f, 0.48f, 0.92f, 1f);
-        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 18f, 661f, 196f, 48f, 12f);
-
-        shapeRenderer.setColor(0.14f, 0.24f, 0.40f, 0.95f);
-        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 224f, 661f, 220f, 48f, 12f);
-
-        shapeRenderer.setColor(0.14f, 0.24f, 0.40f, 0.95f);
-        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 454f, 661f, 668f, 48f, 12f);
+        shapeRenderer.setColor(0.72f, 0.86f, 0.96f, 0.20f);
+        shapeRenderer.rect(0f, 652f, 1280f, 1f);
 
         boolean menuHover = menuButtonBounds.contains(mouseX, mouseY);
-        shapeRenderer.setColor(menuHover ? new Color(0.88f, 0.32f, 0.36f, 1f) : new Color(0.72f, 0.24f, 0.28f, 1f));
+        shapeRenderer.setColor(
+                menuHover ? new Color(0.23f, 0.34f, 0.44f, 0.96f) : new Color(0.10f, 0.17f, 0.24f, 0.88f)
+        );
         ProceduralFridgeRenderer.drawRoundedRect(
-            shapeRenderer,
-            menuButtonBounds.x,
-            menuButtonBounds.y,
-            menuButtonBounds.width,
-            menuButtonBounds.height,
-            10f
+                shapeRenderer,
+                menuButtonBounds.x,
+                menuButtonBounds.y,
+                menuButtonBounds.width,
+                menuButtonBounds.height,
+                10f
         );
     }
 
-    private void renderTopBarTextAndIcons(SpriteBatch batch, AssetManager assetManager, GameState gameState) {
+    private void renderTopBarTextAndIcons(
+        SpriteBatch batch,
+        AssetManager assetManager,
+        GameState gameState,
+        String stageObjective
+    ) {
         BitmapFont subtitleFont = assetManager.getSubtitleFont();
         BitmapFont bodyFont = assetManager.getBodyFont();
         BitmapFont smallFont = assetManager.getSmallFont();
@@ -168,10 +177,10 @@ public class HudRenderer {
         subtitleFont.draw(batch, "STAGE " + gameState.getCurrentStageNumber(), 28f, 694f);
         smallFont.setColor(0.82f, 0.92f, 1.0f, 1f);
         smallFont.draw(
-            batch,
-            "(" + gameState.getFridge().getCols() + "x" + gameState.getFridge().getRows() + ")",
-            152f,
-            689f
+                batch,
+                "(" + gameState.getFridge().getCols() + "x" + gameState.getFridge().getRows() + ")",
+                152f,
+                689f
         );
 
         PlayerLives lives = gameState.getPlayerLives();
@@ -194,34 +203,64 @@ public class HudRenderer {
         batch.setColor(Color.WHITE);
 
         ActivePowerUps powerUps = gameState.getActivePowerUps();
-        StringBuilder powerSummary = new StringBuilder("Powerups: ");
         List<String> tags = new ArrayList<>();
-        if (powerUps.getColdSnapBonusSeconds() > 0f) {
-            tags.add("Cold Snap (+" + (int) powerUps.getColdSnapBonusSeconds() + "s)");
-        }
         if (powerUps.getDeepFreezeCharges() > 0) {
-            tags.add("Deep Freeze x" + powerUps.getDeepFreezeCharges() + " [F]");
+            tags.add("F Freeze x" + powerUps.getDeepFreezeCharges());
         }
         if (powerUps.isGhostFitEnabled()) {
             tags.add("Ghost Fit");
         }
         if (powerUps.isSniffTestEnabled()) {
-            tags.add("Sniff Test");
+            tags.add("Traps Revealed");
         }
-        if (powerUps.getDripTrayCharges() > 0) {
-            tags.add("Drip Tray x" + powerUps.getDripTrayCharges());
+        if (powerUps.isFifoCaddyEnabled()) {
+            tags.add("C FIFO");
         }
-        if (powerUps.getExtraTrashSlots() > 0) {
-            tags.add("Compactor (+" + powerUps.getExtraTrashSlots() + ")");
+        if (powerUps.isReusableContainersEnabled()) {
+            tags.add("R Rotate");
         }
-        if (tags.isEmpty()) {
-            powerSummary.append("None yet (clear stage to earn!)");
-        } else {
-            powerSummary.append(String.join(" | ", tags));
+        String powerSummary = "POWER-UPS " + powerUps.getAcquiredPowerUps().size()
+                + (tags.isEmpty() ? "   Earn upgrades on the route map." : "   " + String.join("   ", tags));
+        GlyphLayout powerSummaryLayout = new GlyphLayout(smallFont, powerSummary);
+        float originalScaleX = smallFont.getData().scaleX;
+        float originalScaleY = smallFont.getData().scaleY;
+        float summaryScale = Math.min(1f, 650f / Math.max(1f, powerSummaryLayout.width));
+        if (summaryScale < 1f) {
+            smallFont.getData().setScale(originalScaleX * summaryScale, originalScaleY * summaryScale);
         }
-
         smallFont.setColor(0.92f, 0.96f, 1.0f, 1f);
-        smallFont.draw(batch, powerSummary.toString(), 468f, 690f);
+        smallFont.draw(batch, powerSummary, 468f, 699f);
+        smallFont.getData().setScale(originalScaleX, originalScaleY);
+
+        Fridge fridge = gameState.getFridge();
+        List<String> stageRules = new ArrayList<>();
+        if (fridge.getSpecialShelfRow() >= 0) {
+            stageRules.add(
+                "GOLD SHELF (row " + (fridge.getSpecialShelfRow() + 1) + "): max weight "
+                    + fridge.getSpecialShelfMaxWeight()
+            );
+        }
+        if (fridge.getPackingOrderTarget() != null) {
+            stageRules.add("PACK " + fridge.getPackingOrderItemName() + " in the gold slot");
+        }
+        if (fridge.hasPrefilledItem()) {
+            stageRules.add("Locked grocery is a fixed obstacle");
+        }
+        List<String> objectiveParts = new ArrayList<>();
+        if (stageObjective != null && !stageObjective.isBlank()) {
+            objectiveParts.add("OBJECTIVE: " + stageObjective);
+        }
+        objectiveParts.addAll(stageRules);
+        if (!objectiveParts.isEmpty()) {
+            String objectiveText = String.join("  |  ", objectiveParts);
+            GlyphLayout objectiveLayout = new GlyphLayout(smallFont, objectiveText);
+            float objectiveScale = Math.min(1f, 1080f / Math.max(1f, objectiveLayout.width));
+            smallFont.getData().setScale(originalScaleX * objectiveScale, originalScaleY * objectiveScale);
+            smallFont.setColor(0.88f, 0.91f, 0.84f, 1f);
+            smallFont.draw(batch, objectiveText, 28f, 660f);
+            smallFont.getData().setScale(originalScaleX, originalScaleY);
+        }
+        smallFont.setColor(Color.WHITE);
 
         bodyFont.setColor(Color.WHITE);
         bodyFont.draw(batch, "MENU [ESC]", menuButtonBounds.x + 15f, menuButtonBounds.y + 27f);
@@ -233,10 +272,10 @@ public class HudRenderer {
         float w = trashBin.getWidth();
         float h = trashBin.getHeight();
 
-        boolean highlightTrash = selectedItem != null && (selectedItem.isTrap() || selectedItem.isContaminated());
+        boolean highlightTrash = selectedItem != null && selectedItem.isTrap();
         Color bgColor = trashBin.isHovered()
-            ? new Color(0.18f, 0.30f, 0.46f, 0.96f)
-            : new Color(0.12f, 0.20f, 0.34f, 0.94f);
+                ? new Color(0.18f, 0.30f, 0.42f, 0.92f)
+                : new Color(0.07f, 0.12f, 0.17f, 0.84f);
 
         shapeRenderer.setColor(bgColor);
         ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, x, y, w, h, 18f);
@@ -257,8 +296,8 @@ public class HudRenderer {
         BitmapFont smallFont = assetManager.getSmallFont();
 
         float bounce = trashBin.getBounceAnimationTimer() > 0f
-            ? MathUtils.sin(trashBin.getBounceAnimationTimer() * 18f) * 8f
-            : 0f;
+                ? MathUtils.sin(trashBin.getBounceAnimationTimer() * 18f) * 8f
+                : 0f;
 
         float iconSize = 98f + bounce;
         float iconX = trashBin.getX() + (trashBin.getWidth() - iconSize) * 0.5f;
@@ -268,76 +307,72 @@ public class HudRenderer {
         GlyphLayout titleLayout = new GlyphLayout(bodyFont, "TRASH BIN");
         bodyFont.setColor(Color.WHITE);
         bodyFont.draw(
-            batch,
-            "TRASH BIN",
-            trashBin.getX() + (trashBin.getWidth() - titleLayout.width) * 0.5f,
-            trashBin.getY() + 194f
+                batch,
+                "TRASH BIN",
+                trashBin.getX() + (trashBin.getWidth() - titleLayout.width) * 0.5f,
+                trashBin.getY() + 194f
         );
 
         String slotStr = "Slots: " + trashBin.getUsedSlots() + " / " + trashBin.getMaxSlots();
         GlyphLayout slotLayout = new GlyphLayout(smallFont, slotStr);
         Color slotColor = trashBin.hasAvailableSlot()
-            ? new Color(0.55f, 0.95f, 0.62f, 1f)
-            : new Color(1.0f, 0.45f, 0.45f, 1f);
+                ? new Color(0.55f, 0.95f, 0.62f, 1f)
+                : new Color(1.0f, 0.45f, 0.45f, 1f);
         smallFont.setColor(slotColor);
         smallFont.draw(
-            batch,
-            slotStr,
-            trashBin.getX() + (trashBin.getWidth() - slotLayout.width) * 0.5f,
-            trashBin.getY() + 46f
+                batch,
+                slotStr,
+                trashBin.getX() + (trashBin.getWidth() - slotLayout.width) * 0.5f,
+                trashBin.getY() + 46f
         );
 
         String hintStr = "Click to Trash";
         GlyphLayout hintLayout = new GlyphLayout(smallFont, hintStr);
         smallFont.setColor(0.78f, 0.86f, 0.96f, 1f);
         smallFont.draw(
-            batch,
-            hintStr,
-            trashBin.getX() + (trashBin.getWidth() - hintLayout.width) * 0.5f,
-            trashBin.getY() + 24f
+                batch,
+                hintStr,
+                trashBin.getX() + (trashBin.getWidth() - hintLayout.width) * 0.5f,
+                trashBin.getY() + 24f
         );
         smallFont.setColor(Color.WHITE);
     }
 
     private void renderTrayBasketShapes(ShapeRenderer shapeRenderer, Tray tray) {
         List<Item> activeItems = tray.getActiveItems();
+        shapeRenderer.setColor(0.035f, 0.065f, 0.10f, 0.78f);
+        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 200f, 10f, 880f, 162f, 12f);
+
         for (int i = 0; i < traySlotBounds.size() && i < activeItems.size(); i++) {
             Rectangle slot = traySlotBounds.get(i);
             Item item = activeItems.get(i);
 
-            shapeRenderer.setColor(0.05f, 0.09f, 0.16f, 0.38f);
-            ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, slot.x + 4f, slot.y - 4f, slot.width, slot.height, 16f);
+            Color cardColor = item.isHovered() || item.isSelected()
+                    ? new Color(0.12f, 0.17f, 0.20f, 0.94f)
+                    : new Color(0.07f, 0.11f, 0.15f, 0.86f);
+            shapeRenderer.setColor(cardColor);
+            ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, slot.x, slot.y, slot.width, slot.height, 10f);
 
-            Color cardOuter = item.isSelected()
-                ? new Color(0.98f, 0.76f, 0.16f, 1f)
-                : new Color(0.20f, 0.46f, 0.82f, 1f);
-            shapeRenderer.setColor(cardOuter);
-            ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, slot.x, slot.y, slot.width, slot.height, 16f);
-
-            Color cardInner = item.isHovered() || item.isSelected()
-                ? new Color(0.96f, 0.98f, 1.00f, 1f)
-                : new Color(0.90f, 0.94f, 0.98f, 1f);
-            shapeRenderer.setColor(cardInner);
-            ProceduralFridgeRenderer.drawRoundedRect(
-                shapeRenderer,
-                slot.x + 5f,
-                slot.y + 5f,
-                slot.width - 10f,
-                slot.height - 10f,
-                12f
-            );
+            Color edgeColor = item.isSelected()
+                    ? new Color(0.98f, 0.76f, 0.16f, 0.96f)
+                    : new Color(0.56f, 0.77f, 0.91f, item.isHovered() ? 0.92f : 0.54f);
+            shapeRenderer.setColor(edgeColor);
+            shapeRenderer.rect(slot.x, slot.y + slot.height - 2f, slot.width, 2f);
+            shapeRenderer.rect(slot.x, slot.y, slot.width, 2f);
+            shapeRenderer.rect(slot.x, slot.y, 2f, slot.height);
+            shapeRenderer.rect(slot.x + slot.width - 2f, slot.y, 2f, slot.height);
 
             renderMiniFootprintGrid(shapeRenderer, slot, item.getSize());
 
-            if (item.isRevealedTrap() || item.isContaminated()) {
+            if (item.isRevealedTrap()) {
                 shapeRenderer.setColor(0.92f, 0.22f, 0.28f, 0.92f);
                 ProceduralFridgeRenderer.drawRoundedRect(
-                    shapeRenderer,
-                    slot.x + 10f,
-                    slot.y + slot.height - 30f,
-                    68f,
-                    20f,
-                    6f
+                        shapeRenderer,
+                        slot.x + 10f,
+                        slot.y + slot.height - 30f,
+                        68f,
+                        20f,
+                        6f
                 );
             }
         }
@@ -385,31 +420,33 @@ public class HudRenderer {
             Item item = activeItems.get(i);
 
             item.renderItemSprite(
-                batch,
-                assetManager,
-                smallFont,
-                slot.x + 28f,
-                slot.y + 42f,
-                slot.width - 56f,
-                slot.height - 62f,
-                1.0f
+                    batch,
+                    assetManager,
+                    smallFont,
+                    slot.x + 28f,
+                    slot.y + 42f,
+                    slot.width - 56f,
+                    slot.height - 62f,
+                    1.0f
             );
 
             GlyphLayout nameLayout = new GlyphLayout(smallFont, item.getDisplayName());
-            smallFont.setColor(0.14f, 0.22f, 0.34f, 1f);
+            float originalScaleX = smallFont.getData().scaleX;
+            float originalScaleY = smallFont.getData().scaleY;
+            float nameScale = Math.min(1f, (slot.width - 16f) / nameLayout.width);
+            smallFont.getData().setScale(originalScaleX * nameScale, originalScaleY * nameScale);
+            smallFont.setColor(0.94f, 0.96f, 0.98f, 1f);
             smallFont.draw(
-                batch,
-                item.getDisplayName(),
-                slot.x + (slot.width - nameLayout.width) * 0.5f,
-                slot.y + 36f
+                    batch,
+                    item.getDisplayName(),
+                    slot.x + (slot.width - nameLayout.width * nameScale) * 0.5f,
+                    slot.y + 36f
             );
+            smallFont.getData().setScale(originalScaleX, originalScaleY);
 
             if (item.isRevealedTrap()) {
                 smallFont.setColor(Color.WHITE);
                 smallFont.draw(batch, "TRAP!", slot.x + 20f, slot.y + slot.height - 15f);
-            } else if (item.isContaminated()) {
-                smallFont.setColor(Color.WHITE);
-                smallFont.draw(batch, "SPOILED!", slot.x + 14f, slot.y + slot.height - 15f);
             }
 
             if (item.getFreezeTimer() > 0f) {
@@ -468,71 +505,82 @@ public class HudRenderer {
     }
 
     private void renderSideActionButtonsShapes(
-        ShapeRenderer shapeRenderer,
-        GameState gameState,
-        float mouseX,
-        float mouseY
+            ShapeRenderer shapeRenderer,
+            GameState gameState,
+            float mouseX,
+            float mouseY
     ) {
         boolean confirmHover = confirmButtonBounds.contains(mouseX, mouseY);
-        shapeRenderer.setColor(confirmHover ? new Color(0.22f, 0.78f, 0.40f, 1f) : new Color(0.16f, 0.64f, 0.32f, 1f));
+        shapeRenderer.setColor(
+                confirmHover ? new Color(0.19f, 0.56f, 0.39f, 0.97f) : new Color(0.12f, 0.40f, 0.29f, 0.92f)
+        );
         ProceduralFridgeRenderer.drawRoundedRect(
-            shapeRenderer,
-            confirmButtonBounds.x,
-            confirmButtonBounds.y,
-            confirmButtonBounds.width,
-            confirmButtonBounds.height,
-            12f
+                shapeRenderer,
+                confirmButtonBounds.x,
+                confirmButtonBounds.y,
+                confirmButtonBounds.width,
+                confirmButtonBounds.height,
+                8f
         );
 
         boolean undoHover = undoButtonBounds.contains(mouseX, mouseY);
-        shapeRenderer.setColor(undoHover ? new Color(0.94f, 0.58f, 0.18f, 1f) : new Color(0.80f, 0.46f, 0.14f, 1f));
+        shapeRenderer.setColor(
+                undoHover ? new Color(0.31f, 0.39f, 0.46f, 0.97f) : new Color(0.16f, 0.23f, 0.30f, 0.90f)
+        );
         ProceduralFridgeRenderer.drawRoundedRect(
-            shapeRenderer,
-            undoButtonBounds.x,
-            undoButtonBounds.y,
-            undoButtonBounds.width,
-            undoButtonBounds.height,
-            12f
+                shapeRenderer,
+                undoButtonBounds.x,
+                undoButtonBounds.y,
+                undoButtonBounds.width,
+                undoButtonBounds.height,
+                8f
         );
 
         int freezeCharges = gameState.getActivePowerUps().getDeepFreezeCharges();
         boolean freezeHover = freezeButtonBounds.contains(mouseX, mouseY) && freezeCharges > 0;
         Color freezeColor = freezeCharges > 0
-            ? (freezeHover ? new Color(0.24f, 0.72f, 0.96f, 1f) : new Color(0.18f, 0.58f, 0.84f, 1f))
-            : new Color(0.26f, 0.34f, 0.44f, 0.85f);
+                ? (freezeHover ? new Color(0.20f, 0.48f, 0.62f, 0.97f) : new Color(0.12f, 0.31f, 0.42f, 0.92f))
+                : new Color(0.12f, 0.16f, 0.20f, 0.78f);
         shapeRenderer.setColor(freezeColor);
         ProceduralFridgeRenderer.drawRoundedRect(
-            shapeRenderer,
-            freezeButtonBounds.x,
-            freezeButtonBounds.y,
-            freezeButtonBounds.width,
-            freezeButtonBounds.height,
-            12f
+                shapeRenderer,
+                freezeButtonBounds.x,
+                freezeButtonBounds.y,
+                freezeButtonBounds.width,
+                freezeButtonBounds.height,
+                8f
         );
 
-        shapeRenderer.setColor(0.12f, 0.20f, 0.34f, 0.94f);
-        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 1015f, 224f, 225f, 182f, 16f);
+        shapeRenderer.setColor(0.035f, 0.065f, 0.10f, 0.82f);
+        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 1015f, 224f, 225f, 182f, 10f);
     }
 
     private void renderSideActionButtonsText(
-        SpriteBatch batch,
-        AssetManager assetManager,
-        GameState gameState,
-        GridPosition hoverGridPos
+            SpriteBatch batch,
+            AssetManager assetManager,
+            GameState gameState,
+            GridPosition hoverGridPos,
+            int undosUntilLifeLoss,
+            String undoKeyLabel
     ) {
         BitmapFont bodyFont = assetManager.getBodyFont();
         BitmapFont smallFont = assetManager.getSmallFont();
 
         bodyFont.setColor(Color.WHITE);
         bodyFont.draw(batch, "Lock [SPACE]", confirmButtonBounds.x + 44f, confirmButtonBounds.y + 31f);
-        bodyFont.draw(batch, "Undo [R-Click]", undoButtonBounds.x + 42f, undoButtonBounds.y + 31f);
+        bodyFont.draw(
+            batch,
+            "UNDO [" + undoKeyLabel + "] (" + undosUntilLifeLoss + " LEFT)",
+            undoButtonBounds.x + 34f,
+            undoButtonBounds.y + 31f
+        );
 
         int freezeCharges = gameState.getActivePowerUps().getDeepFreezeCharges();
         bodyFont.draw(
-            batch,
-            "Freeze [F] (" + freezeCharges + ")",
-            freezeButtonBounds.x + 40f,
-            freezeButtonBounds.y + 31f
+                batch,
+                "Freeze [F] (" + freezeCharges + ")",
+                freezeButtonBounds.x + 40f,
+                freezeButtonBounds.y + 31f
         );
 
         smallFont.setColor(0.95f, 0.88f, 0.42f, 1f);
@@ -540,17 +588,26 @@ public class HudRenderer {
 
         smallFont.setColor(0.86f, 0.92f, 0.98f, 1f);
         smallFont.draw(batch, "L-Click: Select / Place", 1032f, 358f);
-        smallFont.draw(batch, "R-Click: Undo unconfirmed", 1032f, 334f);
-        smallFont.draw(batch, "Space: Lock placements", 1032f, 310f);
-        smallFont.draw(batch, "Trash Bin: Trash traps", 1032f, 286f);
+        smallFont.draw(batch, "Undo: button / " + undoKeyLabel + " / R-Click", 1032f, 334f);
+        smallFont.draw(batch, "1 life per 3 undos", 1032f, 310f);
+        smallFont.draw(batch, "Space: Lock placements", 1032f, 286f);
+        smallFont.draw(batch, "Trash Bin: Trash traps", 1032f, 262f);
+        ActivePowerUps activePowerUps = gameState.getActivePowerUps();
+        if (activePowerUps.isFifoCaddyEnabled()) {
+            smallFont.draw(batch, "C: Pause urgent food (" + activePowerUps.getFifoCaddyCharges() + ")",
+                    1032f, 238f);
+        }
+        if (activePowerUps.isReusableContainersEnabled()) {
+            smallFont.draw(batch, "R: Rotate selected grocery", 1032f, 214f);
+        } else if (activePowerUps.isShelfRailsEnabled()) {
+            smallFont.draw(batch, "Click locked food: Shelf Rails", 1032f, 214f);
+        }
 
         Item selected = gameState.getTray().getSelectedItem();
         if (selected != null && hoverGridPos != null) {
             PlacementResult eval = gameState.getFridge().evaluatePlacement(selected, hoverGridPos);
             if (eval == PlacementResult.LEGAL) {
                 smallFont.setColor(0.35f, 0.96f, 0.52f, 1f);
-            } else if (eval == PlacementResult.SPILL_CAUSING) {
-                smallFont.setColor(1.0f, 0.68f, 0.16f, 1f);
             } else {
                 smallFont.setColor(1.0f, 0.42f, 0.42f, 1f);
             }
@@ -586,11 +643,11 @@ public class HudRenderer {
     }
 
     public void renderStageClearBanner(
-        ShapeRenderer shapeRenderer,
-        SpriteBatch batch,
-        AssetManager assetManager,
-        int stageNumber,
-        float remainingBannerTimer
+            ShapeRenderer shapeRenderer,
+            SpriteBatch batch,
+            AssetManager assetManager,
+            int stageNumber,
+            float remainingBannerTimer
     ) {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -607,12 +664,13 @@ public class HudRenderer {
             if (cx < 0f) {
                 cx += 1280f;
             }
+
             float cy = 720f - ((i * 63f + progress * 520f) % 720f);
             shapeRenderer.setColor(
-                0.3f + (i % 3) * 0.3f,
-                0.4f + ((i + 1) % 3) * 0.25f,
-                0.35f + ((i + 2) % 3) * 0.3f,
-                0.9f
+                    0.3f + (i % 3) * 0.3f,
+                    0.4f + ((i + 1) % 3) * 0.25f,
+                    0.35f + ((i + 2) % 3) * 0.3f,
+                    0.9f
             );
             shapeRenderer.circle(cx, cy, 7f);
         }
@@ -646,6 +704,34 @@ public class HudRenderer {
             subtitleFont.draw(batch, sub, 640f - subLayout.width * 0.5f, 338f);
             batch.end();
         }
+    }
+
+    public void renderBossHealth(
+            ShapeRenderer shapeRenderer,
+            SpriteBatch batch,
+            AssetManager assetManager,
+            int health
+    ) {
+        float barX = 1018f;
+        float barY = 566f;
+        float barWidth = 218f;
+        float progress = MathUtils.clamp(health / 3f, 0f, 1f);
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0.08f, 0.13f, 0.22f, 0.94f);
+        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, barX - 4f, barY - 24f, barWidth + 8f, 66f, 10f);
+        shapeRenderer.setColor(0.34f, 0.12f, 0.16f, 1f);
+        shapeRenderer.rect(barX, barY, barWidth, 14f);
+        shapeRenderer.setColor(0.92f, 0.20f, 0.28f, 1f);
+        shapeRenderer.rect(barX, barY, barWidth * progress, 14f);
+        shapeRenderer.end();
+
+        batch.begin();
+        BitmapFont smallFont = assetManager.getSmallFont();
+        smallFont.setColor(1f, 0.76f, 0.78f, 1f);
+        smallFont.draw(batch, "BOSS - SORTS LEFT: " + health + "/3", barX + 8f, barY + 27f);
+        smallFont.setColor(Color.WHITE);
+        batch.end();
     }
 
     public List<Rectangle> getTraySlotBounds() {

@@ -9,9 +9,7 @@ import com.fillthefridge.util.GridSize;
 import com.fillthefridge.util.InvalidPlacementException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 public class Fridge extends GameObject {
     private int cols;
@@ -19,6 +17,13 @@ public class Fridge extends GameObject {
     private Tile[][] tiles;
     private final List<Shelf> shelves;
     private final List<Item> placedItems;
+    private boolean reinforcedShelves;
+    private int specialShelfRow = -1;
+    private int specialShelfMaxWeight;
+    private GridPosition packingOrderTarget;
+    private String packingOrderItemId;
+    private String packingOrderItemName;
+    private boolean hasPrefilledItem;
 
     public Fridge(int cols, int rows) {
         super(0f, 0f, 440f, 440f);
@@ -30,6 +35,12 @@ public class Fridge extends GameObject {
     public void configureGrid(int newCols, int newRows) {
         this.cols = Math.max(2, newCols);
         this.rows = Math.max(2, newRows);
+        specialShelfRow = -1;
+        specialShelfMaxWeight = 0;
+        packingOrderTarget = null;
+        packingOrderItemId = null;
+        packingOrderItemName = null;
+        hasPrefilledItem = false;
         this.tiles = new Tile[this.cols][this.rows];
         this.shelves.clear();
         this.placedItems.clear();
@@ -86,7 +97,15 @@ public class Fridge extends GameObject {
             return PlacementResult.UNSTABLE;
         }
         GridSize size = item.getSize();
-        if (!isWithinBounds(targetPosition, size) || !areTilesEmpty(targetPosition, size)) {
+        if (!isWithinBounds(targetPosition, size)
+            || !isCategoryAllowedInCompartment(item, targetPosition, size)
+            || !areTilesEmpty(targetPosition, size)) {
+            return PlacementResult.UNSTABLE;
+        }
+        if (specialShelfRow >= 0
+            && targetPosition.getRow() <= specialShelfRow
+            && targetPosition.getRow() + size.getHeight() > specialShelfRow
+            && item.getWeight() > specialShelfMaxWeight) {
             return PlacementResult.UNSTABLE;
         }
         int row = targetPosition.getRow();
@@ -94,49 +113,27 @@ public class Fridge extends GameObject {
             return PlacementResult.LEGAL;
         }
 
-        Set<Item> supportingItems = new LinkedHashSet<>();
         for (int c = targetPosition.getCol(); c < targetPosition.getCol() + size.getWidth(); c++) {
             Tile belowTile = tiles[c][row - 1];
             if (belowTile.isEmpty() || belowTile.getOccupyingItem() == null) {
                 return PlacementResult.UNSTABLE;
             }
-            supportingItems.add(belowTile.getOccupyingItem());
-        }
-
-        boolean causesSpill = false;
-        for (Item belowItem : supportingItems) {
+            Item belowItem = belowTile.getOccupyingItem();
             PlacementResult result = belowItem.onStackedUpon(item, this);
-            if (result == PlacementResult.SPILL_CAUSING) {
-                causesSpill = true;
-            } else if (result == PlacementResult.UNSTABLE) {
+            if (result == PlacementResult.UNSTABLE && (!reinforcedShelves || belowItem.isTrap())) {
                 return PlacementResult.UNSTABLE;
             }
         }
 
-        return causesSpill ? PlacementResult.SPILL_CAUSING : PlacementResult.LEGAL;
-    }
-
-    public List<Item> getSpillableSupportingItems(Item item, GridPosition targetPosition) {
-        List<Item> spillables = new ArrayList<>();
-        if (item == null || targetPosition == null || targetPosition.getRow() <= 0) {
-            return spillables;
-        }
-        int belowRow = targetPosition.getRow() - 1;
-        GridSize size = item.getSize();
-        for (int c = targetPosition.getCol(); c < targetPosition.getCol() + size.getWidth(); c++) {
-            if (c >= 0 && c < cols && belowRow >= 0 && belowRow < rows) {
-                Item below = tiles[c][belowRow].getOccupyingItem();
-                if (below != null && below.isSpillableItem() && !spillables.contains(below)) {
-                    spillables.add(below);
-                }
-            }
-        }
-        return spillables;
+        return PlacementResult.LEGAL;
     }
 
     public void placeItem(Item item, GridPosition targetPosition) throws InvalidPlacementException {
         if (!isWithinBounds(targetPosition, item.getSize())) {
             throw new InvalidPlacementException("Item placement is outside the fridge grid!", targetPosition);
+        }
+        if (!isCategoryAllowedInCompartment(item, targetPosition, item.getSize())) {
+            throw new InvalidPlacementException("That food belongs in a different fridge compartment!", targetPosition);
         }
         if (!areTilesEmpty(targetPosition, item.getSize())) {
             throw new InvalidPlacementException("Target fridge tiles are already occupied!", targetPosition);
@@ -193,80 +190,9 @@ public class Fridge extends GameObject {
         return unsupported;
     }
 
-    public List<Item> propagateSpillFrom(Item sourceItem) {
-        List<Item> newlyContaminated = new ArrayList<>();
-        if (sourceItem == null || sourceItem.getGridPosition() == null) {
-            return newlyContaminated;
-        }
-        GridPosition sourcePos = sourceItem.getGridPosition();
-        GridSize sourceSize = sourceItem.getSize();
-
-        if (sourcePos.getRow() == 0) {
-            if (!sourceItem.isContaminated()) {
-                sourceItem.setContaminated(true);
-                sourceItem.triggerSpillSplash();
-                newlyContaminated.add(sourceItem);
-            }
-            refreshAllTileStates();
-            return newlyContaminated;
-        }
-
-        collectDownwardSpillTargets(
-            sourcePos.getCol(),
-            sourcePos.getCol() + sourceSize.getWidth() - 1,
-            sourcePos.getRow() - 1,
-            newlyContaminated
-        );
-
-        if (newlyContaminated.isEmpty() && !sourceItem.isContaminated()) {
-            sourceItem.setContaminated(true);
-            sourceItem.triggerSpillSplash();
-            newlyContaminated.add(sourceItem);
-        }
-
-        refreshAllTileStates();
-        return newlyContaminated;
-    }
-
-    private void collectDownwardSpillTargets(
-        int startCol,
-        int endCol,
-        int targetRow,
-        List<Item> newlyContaminated
-    ) {
-        if (targetRow < 0 || targetRow >= rows) {
-            return;
-        }
-        Set<Item> hitItemsAtRow = new LinkedHashSet<>();
-        for (int c = Math.max(0, startCol); c <= Math.min(cols - 1, endCol); c++) {
-            Item occupant = tiles[c][targetRow].getOccupyingItem();
-            if (occupant != null) {
-                hitItemsAtRow.add(occupant);
-            }
-        }
-
-        for (Item hitItem : hitItemsAtRow) {
-            if (!hitItem.isContaminated()) {
-                hitItem.setContaminated(true);
-                hitItem.triggerSpillSplash();
-                newlyContaminated.add(hitItem);
-            }
-            if (hitItem.isAbsorbent() && hitItem.getGridPosition() != null) {
-                GridPosition hitPos = hitItem.getGridPosition();
-                GridSize hitSize = hitItem.getSize();
-                collectDownwardSpillTargets(
-                    hitPos.getCol(),
-                    hitPos.getCol() + hitSize.getWidth() - 1,
-                    hitPos.getRow() - 1,
-                    newlyContaminated
-                );
-            }
-        }
-    }
-
     public void confirmAllPlacements() {
         for (Item item : placedItems) {
-            if (!item.isTrap() && !item.isContaminated()) {
+            if (!item.isTrap()) {
                 item.setConfirmed(true);
             }
         }
@@ -285,7 +211,7 @@ public class Fridge extends GameObject {
         for (int c = 0; c < cols; c++) {
             for (int r = 0; r < rows; r++) {
                 Item occupant = tiles[c][r].getOccupyingItem();
-                if (occupant == null || occupant.isTrap() || occupant.isContaminated()) {
+                if (occupant == null || occupant.isTrap()) {
                     return false;
                 }
             }
@@ -296,15 +222,6 @@ public class Fridge extends GameObject {
     public boolean hasTrapItems() {
         for (Item item : placedItems) {
             if (item.isTrap()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public boolean hasContaminatedItems() {
-        for (Item item : placedItems) {
-            if (item.isContaminated()) {
                 return true;
             }
         }
@@ -323,6 +240,53 @@ public class Fridge extends GameObject {
         return tiles[col][row];
     }
 
+    public FridgeCompartment getCompartmentForRow(int row) {
+        if (row <= 0) {
+            return FridgeCompartment.LOWER_CHILLER;
+        }
+        if (row >= rows - 1) {
+            return FridgeCompartment.FREEZER;
+        }
+        return FridgeCompartment.CHILLER;
+    }
+
+    public FridgeCompartment getCompartmentFor(Item item) {
+        if (item == null) {
+            return null;
+        }
+        if (item.getCategory() == ItemCategory.MEAT) {
+            return FridgeCompartment.FREEZER;
+        }
+        if (isLiquidItem(item)) {
+            return FridgeCompartment.LOWER_CHILLER;
+        }
+        return FridgeCompartment.CHILLER;
+    }
+
+    public boolean isCategoryAllowedInCompartment(Item item, GridPosition position, GridSize size) {
+        if (item == null || position == null || size == null || !isWithinBounds(position, size)) {
+            return false;
+        }
+        if (item.isTrap()) {
+            return true;
+        }
+        FridgeCompartment itemCompartment = getCompartmentFor(item);
+        for (int row = position.getRow(); row < position.getRow() + size.getHeight(); row++) {
+            if (getCompartmentForRow(row) != itemCompartment) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean isLiquidItem(Item item) {
+        return item != null && switch (item.getId()) {
+            case "milk", "juice_bottle", "soda_can", "soup_container",
+                "juice_box", "cup_with_straw", "bubble_tea" -> true;
+            default -> false;
+        };
+    }
+
     public int getCols() {
         return cols;
     }
@@ -337,5 +301,51 @@ public class Fridge extends GameObject {
 
     public List<Item> getPlacedItems() {
         return Collections.unmodifiableList(placedItems);
+    }
+
+    public void setReinforcedShelves(boolean reinforcedShelves) {
+        this.reinforcedShelves = reinforcedShelves;
+    }
+
+    public void setSpecialShelfRule(int row, int maxWeight) {
+        if (row < -1 || row >= rows || maxWeight < 0) {
+            throw new IllegalArgumentException("Invalid special shelf rule.");
+        }
+        specialShelfRow = row;
+        specialShelfMaxWeight = maxWeight;
+    }
+
+    public int getSpecialShelfRow() {
+        return specialShelfRow;
+    }
+
+    public int getSpecialShelfMaxWeight() {
+        return specialShelfMaxWeight;
+    }
+
+    public void setPackingOrderTarget(GridPosition target, String itemId, String itemName) {
+        packingOrderTarget = target;
+        packingOrderItemId = itemId;
+        packingOrderItemName = itemName;
+    }
+
+    public GridPosition getPackingOrderTarget() {
+        return packingOrderTarget;
+    }
+
+    public String getPackingOrderItemName() {
+        return packingOrderItemName;
+    }
+
+    public String getPackingOrderItemId() {
+        return packingOrderItemId;
+    }
+
+    public void setHasPrefilledItem(boolean hasPrefilledItem) {
+        this.hasPrefilledItem = hasPrefilledItem;
+    }
+
+    public boolean hasPrefilledItem() {
+        return hasPrefilledItem;
     }
 }

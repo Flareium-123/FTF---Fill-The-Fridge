@@ -54,12 +54,6 @@ public class GameState {
         }
     }
 
-    public void notifySpillOccurred(Item sourceItem, List<Item> contaminatedItems) {
-        for (GameEventListener listener : new ArrayList<>(eventListeners)) {
-            listener.onSpillOccurred(sourceItem, contaminatedItems);
-        }
-    }
-
     public void notifyWarningMessage(String message) {
         for (GameEventListener listener : new ArrayList<>(eventListeners)) {
             listener.onWarningMessage(message);
@@ -77,8 +71,7 @@ public class GameState {
     public boolean isStageWinConditionMet() {
         return fridge.isEveryTileOccupiedByLegalItem()
             && tray.isCompletelyEmpty()
-            && !fridge.hasTrapItems()
-            && !fridge.hasContaminatedItems();
+            && !fridge.hasTrapItems();
     }
 
     public Fridge getFridge() {

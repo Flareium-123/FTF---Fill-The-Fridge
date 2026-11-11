@@ -6,15 +6,18 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.fillthefridge.util.AssetLoadException;
 import com.fillthefridge.util.Registry;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class AssetManager {
     public static final String WHOLE_CHICKEN = "whole_chicken.png";
@@ -32,11 +35,27 @@ public class AssetManager {
     public static final String BROCCOLI = "broccoli.png";
     public static final String CABBAGE = "cabbage.png";
     public static final String APPLE = "apple.png";
+    public static final String AVOCADO = "avocado.png";
+    public static final String BANANA = "banana.png";
+    public static final String CHERRIES = "cherries.png";
+    public static final String GRAPES = "grapes.png";
+    public static final String STRAWBERRIES = "strawberries.png";
     public static final String BREAD = "bread.png";
     public static final String PIZZA_BOX = "pizza_box.png";
     public static final String JAM_JAR = "jam_jar.png";
     public static final String JUICE_BOTTLE = "juice_bottle.png";
     public static final String SODA_CAN = "soda_can.png";
+    public static final String JUICE_BOX = "juice_box.png";
+    public static final String CUP_WITH_STRAW = "cup_with_straw.png";
+    public static final String BUBBLE_TEA = "bubble_tea.png";
+    public static final String PEACH = "peach.png";
+    public static final String CORN = "corn.png";
+    public static final String MUSHROOM = "mushroom.png";
+    public static final String WATERMELON = "watermelon.png";
+    public static final String SHRIMP = "shrimp.png";
+    public static final String HAM = "ham.png";
+    public static final String CHICKEN_BREAST = "chicken_breast.png";
+    public static final String RAW_SALMON = "salmon.png";
     public static final String LEFTOVERS_CONTAINER = "leftovers_container.png";
     public static final String SOUP_CONTAINER = "soup_container.png";
     public static final String TAKEOUT_BOX = "takeout_box.png";
@@ -50,15 +69,23 @@ public class AssetManager {
     public static final String HEART = "heart.png";
     public static final String WARNING_ICON = "warning_icon.png";
     public static final String SNOWFLAKE = "snowflake.png";
+    public static final String FRIDGE_BACKGROUND = "fridge_bg.png";
+    public static final String FRIDGE_PHOTO = "fridge_photo.jpg";
+    public static final String JUNK_FOOD_MONSTER = "junk_food_monster.png";
 
     private static final String ITEMS_DIRECTORY = "assets/items";
     private static final String FALLBACK_ASSETS_DIRECTORY = "assets";
+    private static final String FONT_FILE_PATH = "assets/fonts/OpenSans.ttf";
     private static final String CREDITS_FILE_PATH = "assets/credits.txt";
+    private static final int FONT_RASTER_SIZE = 48;
+    private static final float DEFAULT_FONT_SIZE = 15f;
 
     private final Registry<String, Texture> textureRegistry;
     private final Map<String, Boolean> placeholderFlags;
     private final List<String> discoveredFiles;
     private final List<String> missingAssets;
+    private final Set<String> mipmappedTextures;
+    private boolean highQualityGraphics;
 
     private BitmapFont smallFont;
     private BitmapFont bodyFont;
@@ -70,6 +97,8 @@ public class AssetManager {
         this.placeholderFlags = new LinkedHashMap<>();
         this.discoveredFiles = new ArrayList<>();
         this.missingAssets = new ArrayList<>();
+        this.mipmappedTextures = new HashSet<>();
+        this.highQualityGraphics = true;
     }
 
     public void loadAll() {
@@ -81,18 +110,57 @@ public class AssetManager {
     }
 
     private void initializeFonts() {
-        smallFont = createScaledFont(0.92f);
-        bodyFont = createScaledFont(1.15f);
-        subtitleFont = createScaledFont(1.55f);
-        titleFont = createScaledFont(2.45f);
+        FreeTypeFontGenerator generator;
+        try {
+            generator = new FreeTypeFontGenerator(Gdx.files.internal(FONT_FILE_PATH));
+        } catch (RuntimeException e) {
+            throw new AssetLoadException("Failed to load font", FONT_FILE_PATH, e);
+        }
+        try {
+            smallFont = createScaledFont(generator, 0.92f);
+            bodyFont = createScaledFont(generator, 1.15f);
+            subtitleFont = createScaledFont(generator, 1.55f);
+            titleFont = createScaledFont(generator, 2.45f);
+        } catch (RuntimeException e) {
+            disposeFonts();
+            throw new AssetLoadException("Failed to generate game fonts", FONT_FILE_PATH, e);
+        } finally {
+            generator.dispose();
+        }
     }
 
-    private BitmapFont createScaledFont(float scale) {
-        BitmapFont font = new BitmapFont();
-        font.getRegion().getTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        font.getData().setScale(scale);
+    private BitmapFont createScaledFont(FreeTypeFontGenerator generator, float scale) {
+        FreeTypeFontGenerator.FreeTypeFontParameter parameters =
+            new FreeTypeFontGenerator.FreeTypeFontParameter();
+        parameters.size = FONT_RASTER_SIZE;
+        parameters.characters = FreeTypeFontGenerator.DEFAULT_CHARS;
+        parameters.genMipMaps = true;
+        parameters.minFilter = Texture.TextureFilter.MipMapLinearLinear;
+        parameters.magFilter = Texture.TextureFilter.Linear;
+
+        BitmapFont font = generator.generateFont(parameters);
+        font.getData().setScale(scale * DEFAULT_FONT_SIZE / FONT_RASTER_SIZE);
         font.setUseIntegerPositions(false);
         return font;
+    }
+
+    private void disposeFonts() {
+        if (smallFont != null) {
+            smallFont.dispose();
+            smallFont = null;
+        }
+        if (bodyFont != null) {
+            bodyFont.dispose();
+            bodyFont = null;
+        }
+        if (subtitleFont != null) {
+            subtitleFont.dispose();
+            subtitleFont = null;
+        }
+        if (titleFont != null) {
+            titleFont.dispose();
+            titleFont = null;
+        }
     }
 
     public List<String> getCatalogFilenames() {
@@ -100,10 +168,13 @@ public class AssetManager {
             WHOLE_CHICKEN, STEAK, FISH, SAUSAGE,
             MILK, YOGURT_CUP, CHEESE, BUTTER, EGG_CARTON,
             LETTUCE, CARROT, TOMATO, BROCCOLI, CABBAGE, APPLE,
+            AVOCADO, BANANA, CHERRIES, GRAPES, STRAWBERRIES,
             BREAD, PIZZA_BOX, JAM_JAR, JUICE_BOTTLE, SODA_CAN,
+            JUICE_BOX, CUP_WITH_STRAW, BUBBLE_TEA,
+            PEACH, CORN, MUSHROOM, WATERMELON, SHRIMP, HAM, CHICKEN_BREAST, RAW_SALMON,
             LEFTOVERS_CONTAINER, SOUP_CONTAINER, TAKEOUT_BOX,
             EMPTY_MILK_CARTON, EMPTY_CAN, BANANA_PEEL, PLASTIC_BAG,
-            TRASH_BIN, HEART, WARNING_ICON, SNOWFLAKE
+            TRASH_BIN, HEART, WARNING_ICON, SNOWFLAKE, JUNK_FOOD_MONSTER, FRIDGE_PHOTO
         );
     }
 
@@ -134,9 +205,13 @@ public class AssetManager {
             try {
                 Pixmap rawPixmap = new Pixmap(resolvedHandle);
                 Pixmap trimmedPixmap = trimTransparentBorders(rawPixmap);
-                Texture texture = new Texture(trimmedPixmap);
+                Texture texture = new Texture(trimmedPixmap, true);
                 trimmedPixmap.dispose();
-                texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                mipmappedTextures.add(expectedFilename);
+                texture.setFilter(
+                    highQualityGraphics ? Texture.TextureFilter.MipMapLinearLinear : Texture.TextureFilter.Linear,
+                    Texture.TextureFilter.Linear
+                );
                 textureRegistry.register(expectedFilename, texture);
                 placeholderFlags.put(expectedFilename, false);
                 return;
@@ -304,8 +379,8 @@ public class AssetManager {
             pixmap.drawRectangle(6 + i, 6 + i, size - 12 - i * 2, size - 12 - i * 2);
         }
 
-        Texture texture = new Texture(pixmap);
-        texture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        Texture texture = new Texture(pixmap, true);
+        texture.setFilter(Texture.TextureFilter.MipMapLinearLinear, Texture.TextureFilter.Linear);
         pixmap.dispose();
         return texture;
     }
@@ -329,6 +404,16 @@ public class AssetManager {
 
     public boolean isPlaceholder(String name) {
         return placeholderFlags.getOrDefault(name, false);
+    }
+
+    public void setHighQualityGraphics(boolean enabled) {
+        highQualityGraphics = enabled;
+        for (Map.Entry<String, Texture> entry : textureRegistry.getAll().entrySet()) {
+            Texture.TextureFilter minFilter = enabled && mipmappedTextures.contains(entry.getKey())
+                ? Texture.TextureFilter.MipMapLinearLinear
+                : Texture.TextureFilter.Linear;
+            entry.getValue().setFilter(minFilter, Texture.TextureFilter.Linear);
+        }
     }
 
     public List<String> getDiscoveredFiles() {
@@ -381,17 +466,6 @@ public class AssetManager {
             }
         }
         textureRegistry.clear();
-        if (smallFont != null) {
-            smallFont.dispose();
-        }
-        if (bodyFont != null) {
-            bodyFont.dispose();
-        }
-        if (subtitleFont != null) {
-            subtitleFont.dispose();
-        }
-        if (titleFont != null) {
-            titleFont.dispose();
-        }
+        disposeFonts();
     }
 }

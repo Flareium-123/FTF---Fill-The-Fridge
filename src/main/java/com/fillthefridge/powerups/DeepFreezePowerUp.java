@@ -7,11 +7,11 @@ import com.fillthefridge.model.GameState;
 public class DeepFreezePowerUp extends PowerUp {
     public DeepFreezePowerUp() {
         super(
-            "deep_freeze",
-            "Deep Freeze",
-            "Pause one tray item for 3s (press [F] or auto-triggers)",
-            AssetManager.SNOWFLAKE,
-            false
+                "deep_freeze",
+                "Deep Freeze",
+                "Pauses urgent food now and stores 1 charge ([F]). With FIFO Caddy, gain another freeze charge each stage.",
+                AssetManager.FISH,
+                false
         );
     }
 

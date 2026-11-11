@@ -6,7 +6,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
@@ -14,6 +13,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.fillthefridge.FillTheFridgeGame;
 import com.fillthefridge.assets.AssetManager;
 import com.fillthefridge.powerups.PowerUp;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,20 +43,20 @@ public class PowerUpSelectionScreen extends BaseScreen {
             for (int i = 0; i < choices.size() && i < cardBounds.size(); i++) {
                 if (cardBounds.get(i).contains(mouse.x, mouse.y)) {
                     game.getGameController().choosePowerUp(choices.get(i));
-                    transitionTo(new GameplayScreen(game));
+                    transitionAfterSelection();
                     break;
                 }
             }
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1) && choices.size() >= 1) {
             game.getGameController().choosePowerUp(choices.get(0));
-            transitionTo(new GameplayScreen(game));
+            transitionAfterSelection();
         } else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2) && choices.size() >= 2) {
             game.getGameController().choosePowerUp(choices.get(1));
-            transitionTo(new GameplayScreen(game));
+            transitionAfterSelection();
         } else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3) && choices.size() >= 3) {
             game.getGameController().choosePowerUp(choices.get(2));
-            transitionTo(new GameplayScreen(game));
+            transitionAfterSelection();
         }
 
         Gdx.gl.glClearColor(0.08f, 0.14f, 0.24f, 1f);
@@ -71,10 +71,10 @@ public class PowerUpSelectionScreen extends BaseScreen {
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.rect(0f, 0f, VIRTUAL_WIDTH, VIRTUAL_HEIGHT,
-            new Color(0.08f, 0.15f, 0.26f, 1f),
-            new Color(0.08f, 0.15f, 0.26f, 1f),
-            new Color(0.16f, 0.32f, 0.54f, 1f),
-            new Color(0.16f, 0.32f, 0.54f, 1f)
+                new Color(0.08f, 0.15f, 0.26f, 1f),
+                new Color(0.08f, 0.15f, 0.26f, 1f),
+                new Color(0.16f, 0.32f, 0.54f, 1f),
+                new Color(0.16f, 0.32f, 0.54f, 1f)
         );
 
         for (int i = 0; i < choices.size() && i < cardBounds.size(); i++) {
@@ -85,12 +85,12 @@ public class PowerUpSelectionScreen extends BaseScreen {
 
             shapeRenderer.setColor(0.04f, 0.07f, 0.12f, 0.45f);
             ProceduralFridgeRenderer.drawRoundedRect(
-                shapeRenderer,
-                card.x + 6f,
-                card.y - 6f + lift,
-                card.width,
-                card.height,
-                22f
+                    shapeRenderer,
+                    card.x + 6f,
+                    card.y - 6f + lift,
+                    card.width,
+                    card.height,
+                    22f
             );
 
             if (powerUp.isRare()) {
@@ -99,22 +99,31 @@ public class PowerUpSelectionScreen extends BaseScreen {
                 shapeRenderer.setColor(hovered ? new Color(0.28f, 0.68f, 0.98f, 1f) : new Color(0.18f, 0.46f, 0.78f, 1f));
             }
             ProceduralFridgeRenderer.drawRoundedRect(
-                shapeRenderer,
-                card.x,
-                card.y + lift,
-                card.width,
-                card.height,
-                22f
+                    shapeRenderer,
+                    card.x,
+                    card.y + lift,
+                    card.width,
+                    card.height,
+                    22f
             );
 
             shapeRenderer.setColor(0.12f, 0.20f, 0.34f, 1f);
             ProceduralFridgeRenderer.drawRoundedRect(
-                shapeRenderer,
-                card.x + 6f,
-                card.y + 6f + lift,
-                card.width - 12f,
-                card.height - 12f,
-                18f
+                    shapeRenderer,
+                    card.x + 6f,
+                    card.y + 6f + lift,
+                    card.width - 12f,
+                    card.height - 12f,
+                    18f
+            );
+            shapeRenderer.setColor(0.08f, 0.14f, 0.23f, 1f);
+            ProceduralFridgeRenderer.drawRoundedRect(
+                    shapeRenderer,
+                    card.x + 104f,
+                    card.y + 195f + lift,
+                    102f,
+                    102f,
+                    18f
             );
         }
         shapeRenderer.end();
@@ -126,14 +135,16 @@ public class PowerUpSelectionScreen extends BaseScreen {
         BitmapFont smallFont = assets.getSmallFont();
 
         String header = "CHOOSE 1 POWERUP FOR STAGE " + (game.getGameState().getCurrentStageNumber() + 1);
-        GlyphLayout headerLayout = new GlyphLayout(titleFont, header);
-        titleFont.setColor(0.98f, 0.90f, 0.26f, 1f);
-        titleFont.draw(batch, header, (VIRTUAL_WIDTH - headerLayout.width) * 0.5f, 645f);
+        drawFittedText(
+                batch, titleFont, header, new Rectangle(80f, 612f, VIRTUAL_WIDTH - 160f, 48f),
+                new Color(0.98f, 0.90f, 0.26f, 1f)
+        );
 
         String sub = "Click a card (or press 1, 2, 3) to upgrade your fridge run!";
-        GlyphLayout subLayout = new GlyphLayout(subtitleFont, sub);
-        subtitleFont.setColor(0.82f, 0.92f, 1.0f, 1f);
-        subtitleFont.draw(batch, sub, (VIRTUAL_WIDTH - subLayout.width) * 0.5f, 588f);
+        drawFittedText(
+                batch, subtitleFont, sub, new Rectangle(90f, 560f, VIRTUAL_WIDTH - 180f, 36f),
+                new Color(0.82f, 0.92f, 1.0f, 1f)
+        );
 
         for (int i = 0; i < choices.size() && i < cardBounds.size(); i++) {
             Rectangle card = cardBounds.get(i);
@@ -142,13 +153,10 @@ public class PowerUpSelectionScreen extends BaseScreen {
             float lift = hovered ? 10f : 0f;
 
             Texture icon = assets.getTexture(powerUp.getIconTextureName());
-            float iconSize = 92f;
-            batch.draw(
-                icon,
-                card.x + (card.width - iconSize) * 0.5f,
-                card.y + 215f + lift,
-                iconSize,
-                iconSize
+            drawCenteredIcon(
+                    batch,
+                    icon,
+                    new Rectangle(card.x + 116f, card.y + 207f + lift, 78f, 78f)
             );
 
             if (powerUp.isRare()) {
@@ -159,24 +167,16 @@ public class PowerUpSelectionScreen extends BaseScreen {
                 smallFont.draw(batch, "OPTION [" + (i + 1) + "]", card.x + 114f, card.y + 336f + lift);
             }
 
-            GlyphLayout nameLayout = new GlyphLayout(subtitleFont, powerUp.getName());
-            subtitleFont.setColor(Color.WHITE);
-            subtitleFont.draw(
-                batch,
-                powerUp.getName(),
-                card.x + (card.width - nameLayout.width) * 0.5f,
-                card.y + 185f + lift
+            drawFittedText(
+                    batch, subtitleFont, powerUp.getName(),
+                    new Rectangle(card.x + 14f, card.y + 158f + lift, card.width - 28f, 30f),
+                    Color.WHITE
             );
 
-            bodyFont.setColor(0.84f, 0.92f, 0.98f, 1f);
-            bodyFont.draw(
-                batch,
-                powerUp.getDescription(),
-                card.x + 24f,
-                card.y + 125f + lift,
-                card.width - 48f,
-                1,
-                true
+            drawWrappedText(
+                    batch, bodyFont, powerUp.getDescription(),
+                    new Rectangle(card.x + 20f, card.y + 66f + lift, card.width - 40f, 78f),
+                    new Color(0.84f, 0.92f, 0.98f, 1f), com.badlogic.gdx.utils.Align.center
             );
 
             smallFont.setColor(0.45f, 0.96f, 0.58f, 1f);
@@ -187,5 +187,26 @@ public class PowerUpSelectionScreen extends BaseScreen {
         batch.end();
 
         renderTransitionOverlay(shapeRenderer);
+    }
+
+    private void drawCenteredIcon(SpriteBatch batch, Texture texture, Rectangle bounds) {
+        float scale = Math.min(bounds.width / texture.getWidth(), bounds.height / texture.getHeight());
+        float width = texture.getWidth() * scale;
+        float height = texture.getHeight() * scale;
+        batch.draw(
+                texture,
+                bounds.x + (bounds.width - width) * 0.5f,
+                bounds.y + (bounds.height - height) * 0.5f,
+                width,
+                height
+        );
+    }
+
+    private void transitionAfterSelection() {
+        if (game.getGameState().getCurrentPhase() == com.fillthefridge.model.GamePhase.BOSS_INTRO) {
+            transitionTo(new BossIntroScreen(game));
+        } else {
+            transitionTo(new GameplayScreen(game));
+        }
     }
 }

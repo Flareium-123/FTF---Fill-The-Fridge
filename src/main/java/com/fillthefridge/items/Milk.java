@@ -4,10 +4,8 @@ import com.fillthefridge.model.Fridge;
 import com.fillthefridge.model.ItemCategory;
 import com.fillthefridge.model.PlacementResult;
 import com.fillthefridge.util.GridSize;
-import com.fillthefridge.util.Spillable;
-import java.util.List;
 
-public class Milk extends Item implements Spillable {
+public class Milk extends Item {
     public Milk(
         String id,
         String displayName,
@@ -26,7 +24,6 @@ public class Milk extends Item implements Spillable {
             maxShelfLife,
             weight,
             0,
-            false,
             warningPhrase
         );
     }
@@ -43,23 +40,7 @@ public class Milk extends Item implements Spillable {
 
     @Override
     public PlacementResult onStackedUpon(Item aboveItem, Fridge fridge) {
-        return PlacementResult.SPILL_CAUSING;
-    }
-
-    @Override
-    public boolean isSpillable() {
-        return true;
-    }
-
-    @Override
-    public boolean isSpillableItem() {
-        return true;
-    }
-
-    @Override
-    public List<Item> spillDownward(Fridge fridge) {
-        triggerSpillSplash();
-        return fridge.propagateSpillFrom(this);
+        return canSupport(aboveItem) ? PlacementResult.LEGAL : PlacementResult.UNSTABLE;
     }
 
     @Override

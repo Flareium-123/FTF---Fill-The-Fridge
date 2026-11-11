@@ -3,6 +3,8 @@ package com.fillthefridge.logic;
 import com.fillthefridge.model.StageConfig;
 
 public class ProgressiveDifficultyStrategy implements DifficultyScalingStrategy {
+    public static final int FINAL_STAGE = 8;
+
     @Override
     public StageConfig createStageConfig(int stageNumber, long baseSeed) {
         int safeStage = Math.max(1, stageNumber);
@@ -23,15 +25,15 @@ public class ProgressiveDifficultyStrategy implements DifficultyScalingStrategy 
         int trapCount = Math.min(6, 1 + (safeStage / 2));
 
         float awkwardShapeProbability = Math.min(0.65f, 0.18f + (safeStage - 1) * 0.08f);
-        float spillPuzzleProbability = Math.min(0.60f, 0.20f + (safeStage - 1) * 0.07f);
-
         int trayCapacity = safeStage <= 3 ? 4 : 3;
         int extraTrashBuffer = safeStage <= 4 ? 2 : 1;
         int trashSlots = trapCount + extraTrashBuffer;
 
-        float timerMultiplier = 1.0f;
+        float timerMultiplier;
         if (safeStage >= 6) {
-            timerMultiplier = Math.max(0.65f, 1.0f - (safeStage - 5) * 0.06f);
+            timerMultiplier = Math.max(0.85f, 1.15f - (safeStage - 5) * 0.04f);
+        } else {
+            timerMultiplier = 1.15f;
         }
 
         long stageSeed = baseSeed + safeStage * 982451653L;
@@ -45,8 +47,10 @@ public class ProgressiveDifficultyStrategy implements DifficultyScalingStrategy 
             trashSlots,
             timerMultiplier,
             awkwardShapeProbability,
-            spillPuzzleProbability,
-            stageSeed
+            stageSeed,
+            safeStage >= 4,
+            safeStage >= 5 ? 1 : -1,
+            1
         );
     }
 }

@@ -8,7 +8,7 @@ public class ColdSnapPowerUp extends PowerUp {
         super(
             "cold_snap",
             "Cold Snap",
-            "+2s to all tray item timers",
+            "+2s to all tray timers. With Smart Thermostat, the most urgent grocery gets another +3s.",
             AssetManager.SNOWFLAKE,
             false
         );

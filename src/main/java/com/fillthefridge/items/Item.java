@@ -29,7 +29,6 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
     private final GridSize size;
     private final int weight;
     private final int maxSupportWeight;
-    private final boolean absorbent;
     private final String warningPhrase;
 
     private GridPosition gridPosition;
@@ -40,16 +39,15 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
 
     private boolean inFridge;
     private boolean confirmed;
-    private boolean contaminated;
     private boolean revealedTrap;
     private boolean warningAnnounced;
     private boolean hovered;
     private boolean selected;
+    private boolean rotated;
 
     private float hoverScale;
     private float snapAnimationProgress;
     private float shakePhase;
-    private float splashAnimationTimer;
 
     protected Item(
         String id,
@@ -60,7 +58,6 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         float maxShelfLife,
         int weight,
         int maxSupportWeight,
-        boolean absorbent,
         String warningPhrase
     ) {
         super(0f, 0f, 64f, 64f);
@@ -74,7 +71,6 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         this.graceTimeRemaining = GRACE_PERIOD_SECONDS;
         this.weight = weight;
         this.maxSupportWeight = maxSupportWeight;
-        this.absorbent = absorbent;
         this.warningPhrase = warningPhrase;
         this.hoverScale = 1.0f;
         this.snapAnimationProgress = 1.0f;
@@ -87,10 +83,6 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
 
         if (snapAnimationProgress < 1.0f) {
             snapAnimationProgress = Math.min(1.0f, snapAnimationProgress + deltaTime * 8.0f);
-        }
-
-        if (splashAnimationTimer > 0f) {
-            splashAnimationTimer = Math.max(0f, splashAnimationTimer - deltaTime);
         }
 
         if (!inFridge) {
@@ -133,23 +125,19 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         float fittedWidth;
         float fittedHeight;
 
-        if (inFridge || alpha < 0.99f) {
-            float padX = 8f;
-            float padY = 8f;
-            fittedWidth = Math.max(16f, drawWidth - padX * 2f);
-            fittedHeight = Math.max(16f, drawHeight - padY * 2f);
+        float texW = texture.getWidth();
+        float texH = texture.getHeight();
+        float aspect = texW / Math.max(1f, texH);
+        float spriteBoxWidth = rotated ? drawHeight : drawWidth;
+        float spriteBoxHeight = rotated ? drawWidth : drawHeight;
+        float boxAspect = spriteBoxWidth / Math.max(1f, spriteBoxHeight);
+        float fitScale = inFridge ? 0.84f : 0.88f;
+        if (aspect > boxAspect) {
+            fittedWidth = spriteBoxWidth * fitScale;
+            fittedHeight = fittedWidth / aspect;
         } else {
-            float texW = texture.getWidth();
-            float texH = texture.getHeight();
-            float aspect = texW / Math.max(1f, texH);
-            float boxAspect = drawWidth / Math.max(1f, drawHeight);
-            if (aspect > boxAspect) {
-                fittedWidth = drawWidth * 0.88f;
-                fittedHeight = fittedWidth / aspect;
-            } else {
-                fittedHeight = drawHeight * 0.88f;
-                fittedWidth = fittedHeight * aspect;
-            }
+            fittedHeight = spriteBoxHeight * fitScale;
+            fittedWidth = fittedHeight * aspect;
         }
 
         float snapScale = 1.0f;
@@ -159,8 +147,10 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         }
 
         float activeScale = inFridge ? snapScale : hoverScale;
-        float finalW = fittedWidth * activeScale;
-        float finalH = fittedHeight * activeScale;
+        float spriteWidth = fittedWidth * activeScale;
+        float spriteHeight = fittedHeight * activeScale;
+        float finalW = rotated ? spriteHeight : spriteWidth;
+        float finalH = rotated ? spriteWidth : spriteHeight;
 
         float shakeOffsetX = 0f;
         if (!inFridge && isCriticalThresholdReached()) {
@@ -172,16 +162,35 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         float finalY = drawY + (drawHeight - finalH) * 0.5f;
 
         Color tint = new Color(1f, 1f, 1f, alpha);
-        if (contaminated) {
-            tint.set(0.55f, 0.78f, 0.32f, alpha);
-        } else if (freezeTimer > 0f) {
+        if (freezeTimer > 0f) {
             tint.set(0.68f, 0.90f, 1.0f, alpha);
         } else if (!inFridge && remainingTime <= 0f) {
             tint.set(1.0f, 0.45f, 0.45f, alpha);
         }
 
         batch.setColor(tint);
-        batch.draw(texture, finalX, finalY, finalW, finalH);
+        if (rotated) {
+            batch.draw(
+                texture,
+                drawX + (drawWidth - spriteWidth) * 0.5f + shakeOffsetX,
+                drawY + (drawHeight - spriteHeight) * 0.5f,
+                spriteWidth * 0.5f,
+                spriteHeight * 0.5f,
+                spriteWidth,
+                spriteHeight,
+                1f,
+                1f,
+                90f,
+                0,
+                0,
+                texture.getWidth(),
+                texture.getHeight(),
+                false,
+                false
+            );
+        } else {
+            batch.draw(texture, finalX, finalY, finalW, finalH);
+        }
         batch.setColor(Color.WHITE);
 
         if (assetManager.isPlaceholder(textureName) && font != null) {
@@ -212,20 +221,8 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         return false;
     }
 
-    public boolean isSpillableItem() {
-        return false;
-    }
-
     public void triggerSnapAnimation() {
         this.snapAnimationProgress = 0.0f;
-    }
-
-    public void triggerSpillSplash() {
-        this.splashAnimationTimer = 0.95f;
-    }
-
-    public float getSplashAnimationTimer() {
-        return splashAnimationTimer;
     }
 
     public void applyDeepFreeze(float durationSeconds) {
@@ -315,7 +312,15 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
 
     @Override
     public GridSize getSize() {
-        return size;
+        return rotated ? new GridSize(size.getHeight(), size.getWidth()) : size;
+    }
+
+    public boolean rotateFootprint() {
+        if (size.getWidth() == size.getHeight()) {
+            return false;
+        }
+        rotated = !rotated;
+        return true;
     }
 
     @Override
@@ -352,10 +357,6 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         return maxSupportWeight;
     }
 
-    public boolean isAbsorbent() {
-        return absorbent;
-    }
-
     public String getWarningPhrase() {
         return warningPhrase;
     }
@@ -366,14 +367,6 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
 
     public void setInFridge(boolean inFridge) {
         this.inFridge = inFridge;
-    }
-
-    public boolean isContaminated() {
-        return contaminated;
-    }
-
-    public void setContaminated(boolean contaminated) {
-        this.contaminated = contaminated;
     }
 
     public boolean isRevealedTrap() {

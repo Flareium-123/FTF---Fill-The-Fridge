@@ -6,35 +6,23 @@ Game Design & OOP Implementation:
 - Built with Java 17+ and libGDX (LWJGL3 Desktop Backend)
 - Procedural Fridge Renderer & Solvable Stage Generator
 
-Icon Attributions (Flaticon - https://www.flaticon.com):
-- whole_chicken.png : Icon made by [Author Name] from www.flaticon.com
-- steak.png : Icon made by [Author Name] from www.flaticon.com
-- fish.png : Icon made by [Author Name] from www.flaticon.com
-- sausage.png : Icon made by [Author Name] from www.flaticon.com
-- milk.png : Icon made by [Author Name] from www.flaticon.com
-- yogurt_cup.png : Icon made by [Author Name] from www.flaticon.com
-- cheese.png : Icon made by [Author Name] from www.flaticon.com
-- butter.png : Icon made by [Author Name] from www.flaticon.com
-- egg_carton.png : Icon made by [Author Name] from www.flaticon.com
-- lettuce.png : Icon made by [Author Name] from www.flaticon.com
-- carrot.png : Icon made by [Author Name] from www.flaticon.com
-- tomato.png : Icon made by [Author Name] from www.flaticon.com
-- broccoli.png : Icon made by [Author Name] from www.flaticon.com
-- cabbage.png : Icon made by [Author Name] from www.flaticon.com
-- apple.png : Icon made by [Author Name] from www.flaticon.com
-- bread.png : Icon made by [Author Name] from www.flaticon.com
-- pizza_box.png : Icon made by [Author Name] from www.flaticon.com
-- jam_jar.png : Icon made by [Author Name] from www.flaticon.com
-- juice_bottle.png : Icon made by [Author Name] from www.flaticon.com
-- soda_can.png : Icon made by [Author Name] from www.flaticon.com
-- leftovers_container.png : Icon made by [Author Name] from www.flaticon.com
-- soup_container.png : Icon made by [Author Name] from www.flaticon.com
-- takeout_box.png : Icon made by [Author Name] from www.flaticon.com
-- empty_milk_carton.png : Icon made by [Author Name] from www.flaticon.com
-- empty_can.png : Icon made by [Author Name] from www.flaticon.com
-- banana_peel.png : Icon made by [Author Name] from www.flaticon.com
-- plastic_bag.png : Icon made by [Author Name] from www.flaticon.com
-- trash_bin.png : Icon made by [Author Name] from www.flaticon.com
-- heart.png : Icon made by [Author Name] from www.flaticon.com
-- warning_icon.png : Icon made by [Author Name] from www.flaticon.com
-- snowflake.png : Icon made by [Author Name] from www.flaticon.com
+Fridge Background (Flaticon - https://www.flaticon.com):
+- fridge_bg.png : Fridge illustration from Flaticon (www.flaticon.com)
+
+High-resolution Fridge Photo (Wikimedia Commons):
+- fridge_photo.jpg: "Double Door Refrigerator" by Yanjing Zhao Da Zhishifenzi, CC BY-SA 4.0.
+- Source: https://commons.wikimedia.org/wiki/File:Double_Door_Refrigerator.jpg
+- License: https://creativecommons.org/licenses/by-sa/4.0/
+
+Food, Trap, Power-up & Boss Icon Artwork (Google Noto Emoji):
+- 44 icon assets are used from the Noto Emoji 512px PNG collection.
+- Copyright 2013 Google LLC and Noto Emoji contributors; image resources licensed under Apache License 2.0.
+- Source: https://github.com/googlefonts/noto-emoji
+- Full license text: assets/noto-emoji-LICENSE.txt
+
+Sausage Link Artwork:
+- sausage.png : Original 512px transparent sausage-link illustration, created for this game.
+
+Game Fonts (Open Sans):
+- Open Sans by The Open Sans Project Authors, sourced from Google Fonts.
+- Licensed under the SIL Open Font License 1.1; full license: assets/fonts/OFL.txt

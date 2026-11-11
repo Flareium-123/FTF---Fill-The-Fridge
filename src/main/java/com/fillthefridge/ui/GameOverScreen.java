@@ -13,6 +13,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.fillthefridge.FillTheFridgeGame;
 import com.fillthefridge.assets.AssetManager;
 import com.fillthefridge.powerups.PowerUp;
+
 import java.util.List;
 
 public class GameOverScreen extends BaseScreen {
@@ -55,28 +56,28 @@ public class GameOverScreen extends BaseScreen {
 
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         shapeRenderer.rect(0f, 0f, VIRTUAL_WIDTH, VIRTUAL_HEIGHT,
-            new Color(0.16f, 0.08f, 0.12f, 1f),
-            new Color(0.16f, 0.08f, 0.12f, 1f),
-            new Color(0.28f, 0.12f, 0.18f, 1f),
-            new Color(0.28f, 0.12f, 0.18f, 1f)
+                new Color(0.16f, 0.08f, 0.12f, 1f),
+                new Color(0.16f, 0.08f, 0.12f, 1f),
+                new Color(0.28f, 0.12f, 0.18f, 1f),
+                new Color(0.28f, 0.12f, 0.18f, 1f)
         );
 
         shapeRenderer.setColor(0.10f, 0.12f, 0.18f, 0.90f);
         ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 320f, 85f, 640f, 550f, 26f);
 
         drawStyledButtonShape(
-            shapeRenderer,
-            retryButton,
-            new Color(0.20f, 0.72f, 0.38f, 1f),
-            new Color(0.26f, 0.84f, 0.46f, 1f),
-            retryButton.contains(mouse.x, mouse.y)
+                shapeRenderer,
+                retryButton,
+                new Color(0.20f, 0.72f, 0.38f, 1f),
+                new Color(0.26f, 0.84f, 0.46f, 1f),
+                retryButton.contains(mouse.x, mouse.y)
         );
         drawStyledButtonShape(
-            shapeRenderer,
-            mainMenuButton,
-            new Color(0.24f, 0.48f, 0.78f, 1f),
-            new Color(0.32f, 0.58f, 0.90f, 1f),
-            mainMenuButton.contains(mouse.x, mouse.y)
+                shapeRenderer,
+                mainMenuButton,
+                new Color(0.24f, 0.48f, 0.78f, 1f),
+                new Color(0.32f, 0.58f, 0.90f, 1f),
+                mainMenuButton.contains(mouse.x, mouse.y)
         );
         shapeRenderer.end();
 
@@ -106,12 +107,20 @@ public class GameOverScreen extends BaseScreen {
             smallFont.setColor(0.68f, 0.74f, 0.82f, 1f);
             smallFont.draw(batch, "None collected on this run.", 410f, 392f);
         } else {
-            float py = 392f;
             for (int i = 0; i < Math.min(5, powerUps.size()); i++) {
                 PowerUp p = powerUps.get(i);
-                smallFont.setColor(0.55f, 0.92f, 0.68f, 1f);
-                smallFont.draw(batch, "- " + p.getName() + ": " + p.getDescription(), 410f, py);
-                py -= 24f;
+                float rowTop = 407f - i * 29f;
+                batch.draw(assets.getTexture(p.getIconTextureName()), 330f, rowTop - 25f, 24f, 24f);
+                drawFittedText(
+                        batch, smallFont, p.getName(),
+                        new Rectangle(361f, rowTop - 26f, 126f, 23f),
+                        new Color(0.55f, 0.92f, 0.68f, 1f)
+                );
+                drawWrappedText(
+                        batch, smallFont, p.getDescription(),
+                        new Rectangle(493f, rowTop - 28f, 455f, 28f),
+                        new Color(0.86f, 0.90f, 0.95f, 1f), com.badlogic.gdx.utils.Align.left
+                );
             }
         }
 

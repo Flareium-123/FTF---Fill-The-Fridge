@@ -40,8 +40,8 @@ public class TrashBin extends GameObject {
         if (item == null) {
             throw new InvalidPlacementException("No item selected to trash.");
         }
-        if (!item.isTrap() && !item.isContaminated()) {
-            throw new InvalidPlacementException("Fresh groceries belong in the fridge! Only trash traps or contaminated items.");
+        if (!item.isTrap()) {
+            throw new InvalidPlacementException("Fresh groceries belong in the fridge! Only trap items belong in the trash.");
         }
         if (item.isTrap() && !hasAvailableSlot()) {
             throw new InvalidPlacementException("The trash bin is full! No slots remaining.");

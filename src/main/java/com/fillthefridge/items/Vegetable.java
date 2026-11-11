@@ -14,7 +14,6 @@ public class Vegetable extends Item {
         float maxShelfLife,
         int weight,
         int maxSupportWeight,
-        boolean absorbent,
         String warningPhrase
     ) {
         super(
@@ -26,7 +25,6 @@ public class Vegetable extends Item {
             maxShelfLife,
             weight,
             maxSupportWeight,
-            absorbent,
             warningPhrase
         );
     }
@@ -38,7 +36,7 @@ public class Vegetable extends Item {
 
     @Override
     public boolean canSupport(Item aboveItem) {
-        return !isContaminated() && aboveItem != null && aboveItem.getWeight() <= getMaxSupportWeight();
+        return aboveItem != null && aboveItem.getWeight() <= getMaxSupportWeight();
     }
 
     @Override
@@ -59,7 +57,6 @@ public class Vegetable extends Item {
             getMaxShelfLife(),
             getWeight(),
             getMaxSupportWeight(),
-            isAbsorbent(),
             getWarningPhrase()
         );
     }

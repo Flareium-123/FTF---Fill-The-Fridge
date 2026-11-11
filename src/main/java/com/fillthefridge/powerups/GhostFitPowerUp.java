@@ -6,11 +6,11 @@ import com.fillthefridge.model.GameState;
 public class GhostFitPowerUp extends PowerUp {
     public GhostFitPowerUp() {
         super(
-            "ghost_fit",
-            "Ghost Fit",
-            "Exact placement preview and support highlights",
-            AssetManager.SNOWFLAKE,
-            false
+                "ghost_fit",
+                "Ghost Fit",
+                "Exact placement preview and support highlights",
+                AssetManager.CUP_WITH_STRAW,
+                false
         );
     }
 

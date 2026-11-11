@@ -25,7 +25,6 @@ public class Dairy extends Item {
             maxShelfLife,
             weight,
             maxSupportWeight,
-            false,
             warningPhrase
         );
     }
@@ -37,7 +36,7 @@ public class Dairy extends Item {
 
     @Override
     public boolean canSupport(Item aboveItem) {
-        return !isContaminated() && aboveItem != null && aboveItem.getWeight() <= getMaxSupportWeight();
+        return aboveItem != null && aboveItem.getWeight() <= getMaxSupportWeight();
     }
 
     @Override

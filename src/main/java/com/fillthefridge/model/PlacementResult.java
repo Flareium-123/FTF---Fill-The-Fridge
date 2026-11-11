@@ -2,8 +2,7 @@ package com.fillthefridge.model;
 
 public enum PlacementResult {
     LEGAL("Legal Placement"),
-    UNSTABLE("Unstable / Blocked"),
-    SPILL_CAUSING("Warning: Will Cause Spill!");
+    UNSTABLE("Unstable / Blocked");
 
     private final String description;
 
