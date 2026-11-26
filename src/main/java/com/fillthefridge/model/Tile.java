@@ -7,14 +7,24 @@ public class Tile {
     private final GridPosition position;
     private TileState state;
     private Item occupyingItem;
+    private boolean blocked;
 
     public Tile(GridPosition position) {
         this.position = position;
         this.state = TileState.EMPTY;
+        this.blocked = false;
     }
 
     public boolean isEmpty() {
-        return occupyingItem == null && state == TileState.EMPTY;
+        return occupyingItem == null && state == TileState.EMPTY && !blocked;
+    }
+
+    public boolean isBlocked() {
+        return blocked;
+    }
+
+    public void setBlocked(boolean blocked) {
+        this.blocked = blocked;
     }
 
     public void setOccupyingItem(Item item) {

@@ -94,6 +94,15 @@ public class Tray extends GameObject {
         }
     }
 
+    public void addActiveItem(Item item) {
+        item.setInFridge(false);
+        item.setConfirmed(false);
+        item.setGridPosition(null);
+        if (!activeItems.contains(item)) {
+            activeItems.add(0, item);
+        }
+    }
+
     public void addBonusTimeToAll(float seconds) {
         for (Item item : activeItems) {
             item.addBonusTime(seconds);

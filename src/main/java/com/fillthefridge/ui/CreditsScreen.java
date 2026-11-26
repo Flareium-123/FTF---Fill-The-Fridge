@@ -12,6 +12,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Align;
 import com.fillthefridge.FillTheFridgeGame;
 import com.fillthefridge.assets.AssetManager;
 import com.fillthefridge.util.AssetLoadException;
@@ -110,14 +111,17 @@ public class CreditsScreen extends BaseScreen {
         BitmapFont smallFont = assets.getSmallFont();
 
         String header = "CREDITS & ATTRIBUTIONS";
-        GlyphLayout headerLayout = new GlyphLayout(titleFont, header);
-        titleFont.setColor(0.98f, 0.90f, 0.25f, 1f);
-        titleFont.draw(batch, header, (VIRTUAL_WIDTH - headerLayout.width) * 0.5f, 678f);
+        TextLayoutHelper.drawFittedAtBaseline(
+            batch, titleFont, header, 120f, 678f, VIRTUAL_WIDTH - 240f,
+            new Color(0.98f, 0.90f, 0.25f, 1f), Align.center
+        );
 
         float startY = 590f + scrollOffset;
         for (int i = 0; i < creditsLines.size(); i++) {
             float lineY = startY - i * 24f;
-            if (lineY < 125f || lineY > 602f) {
+            float lineTop = lineY + smallFont.getCapHeight() + smallFont.getAscent();
+            float lineBottom = lineY + smallFont.getDescent();
+            if (lineBottom < 125f || lineTop > 602f) {
                 continue;
             }
             String line = creditsLines.get(i);
@@ -126,11 +130,16 @@ public class CreditsScreen extends BaseScreen {
             } else {
                 smallFont.setColor(0.88f, 0.94f, 1.0f, 1f);
             }
-            smallFont.draw(batch, line, 195f, lineY);
+            TextLayoutHelper.drawFittedAtBaseline(
+                batch, smallFont, line, 195f, lineY, 890f, smallFont.getColor(), Align.left
+            );
         }
 
         smallFont.setColor(0.68f, 0.80f, 0.92f, 1f);
-        smallFont.draw(batch, "Use Mouse Wheel or UP/DOWN Arrows to scroll (assets/credits.txt)", 440f, 98f);
+        TextLayoutHelper.drawFittedAtBaseline(
+            batch, smallFont, "Use Mouse Wheel or UP/DOWN Arrows to scroll (assets/credits.txt)",
+            300f, 98f, 680f, smallFont.getColor(), Align.center
+        );
 
         drawCenteredText(batch, bodyFont, "BACK TO MENU [ESC]", backButton, Color.WHITE);
         batch.end();

@@ -44,6 +44,7 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
     private boolean hovered;
     private boolean selected;
     private boolean rotated;
+    private boolean hidden;
 
     private float hoverScale;
     private float snapAnimationProgress;
@@ -140,15 +141,19 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
             fittedWidth = fittedHeight * aspect;
         }
 
-        float snapScale = 1.0f;
+        float snapScaleX = 1.0f;
+        float snapScaleY = 1.0f;
         if (snapAnimationProgress < 1.0f) {
             float t = snapAnimationProgress;
-            snapScale = 0.88f + 0.12f * t + 0.08f * MathUtils.sin(t * MathUtils.PI);
+            float bounce = MathUtils.sin(t * MathUtils.PI);
+            snapScaleX = 0.90f + 0.10f * t + 0.16f * bounce * (1.0f - t);
+            snapScaleY = 0.90f + 0.10f * t - 0.14f * bounce * (1.0f - t);
         }
 
-        float activeScale = inFridge ? snapScale : hoverScale;
-        float spriteWidth = fittedWidth * activeScale;
-        float spriteHeight = fittedHeight * activeScale;
+        float activeScaleX = inFridge ? snapScaleX : hoverScale;
+        float activeScaleY = inFridge ? snapScaleY : hoverScale;
+        float spriteWidth = fittedWidth * activeScaleX;
+        float spriteHeight = fittedHeight * activeScaleY;
         float finalW = rotated ? spriteHeight : spriteWidth;
         float finalH = rotated ? spriteWidth : spriteHeight;
 
@@ -196,12 +201,9 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
         if (assetManager.isPlaceholder(textureName) && font != null) {
             GlyphLayout layout = new GlyphLayout(font, displayName);
             font.setColor(Color.WHITE);
-            font.draw(
-                batch,
-                displayName,
-                drawX + (drawWidth - layout.width) * 0.5f,
-                drawY + (drawHeight + layout.height) * 0.5f
-            );
+            float textX = drawX + (drawWidth - layout.width) * 0.5f;
+            float textY = drawY + (drawHeight + layout.height) * 0.5f - layout.height;
+            font.draw(batch, displayName, textX, textY);
         }
     }
 
@@ -391,5 +393,13 @@ public abstract class Item extends GameObject implements Placeable, Spoilable {
 
     public void setSelected(boolean selected) {
         this.selected = selected;
+    }
+
+    public boolean isHidden() {
+        return hidden;
+    }
+
+    public void setHidden(boolean hidden) {
+        this.hidden = hidden;
     }
 }

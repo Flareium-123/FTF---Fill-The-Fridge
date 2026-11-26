@@ -203,7 +203,10 @@ public class PowerUpSelectionScreen extends BaseScreen {
     }
 
     private void transitionAfterSelection() {
-        if (game.getGameState().getCurrentPhase() == com.fillthefridge.model.GamePhase.BOSS_INTRO) {
+        com.fillthefridge.model.GamePhase phase = game.getGameState().getCurrentPhase();
+        if (phase == com.fillthefridge.model.GamePhase.PRE_BOSS_EVENT) {
+            transitionTo(new PreBossEventScreen(game));
+        } else if (phase == com.fillthefridge.model.GamePhase.BOSS_INTRO) {
             transitionTo(new BossIntroScreen(game));
         } else {
             transitionTo(new GameplayScreen(game));

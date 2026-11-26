@@ -2,6 +2,7 @@ package com.fillthefridge.powerups;
 
 import com.fillthefridge.assets.AssetManager;
 import com.fillthefridge.items.Item;
+import com.fillthefridge.model.GamePhase;
 import com.fillthefridge.model.GameState;
 
 public class DeepFreezePowerUp extends PowerUp {
@@ -18,9 +19,13 @@ public class DeepFreezePowerUp extends PowerUp {
     @Override
     public void apply(GameState gameState) {
         gameState.getActivePowerUps().addDeepFreezeCharge(1);
-        Item urgent = gameState.getTray().findMostUrgentItem();
-        if (urgent != null) {
-            urgent.applyDeepFreeze(3.0f);
+        if (gameState.getCurrentPhase() == GamePhase.PLAYING) {
+            Item urgent = gameState.getTray().findMostUrgentItem();
+            if (urgent != null) {
+                urgent.applyDeepFreeze(3.0f);
+            }
+        } else {
+            gameState.getActivePowerUps().setPendingInitialDeepFreeze(true);
         }
         gameState.getActivePowerUps().recordPowerUp(this);
     }

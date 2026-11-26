@@ -9,7 +9,9 @@ import com.fillthefridge.util.GridSize;
 import com.fillthefridge.util.InvalidPlacementException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class Fridge extends GameObject {
     private int cols;
@@ -24,30 +26,45 @@ public class Fridge extends GameObject {
     private String packingOrderItemId;
     private String packingOrderItemName;
     private boolean hasPrefilledItem;
+    private final Set<String> blockedTiles;
+    private FridgeLayout currentLayout;
 
     public Fridge(int cols, int rows) {
         super(0f, 0f, 440f, 440f);
         this.shelves = new ArrayList<>();
         this.placedItems = new ArrayList<>();
+        this.blockedTiles = new HashSet<>();
+        this.currentLayout = FridgeLayout.STANDARD;
         configureGrid(cols, rows);
     }
 
     public void configureGrid(int newCols, int newRows) {
+        configureGrid(newCols, newRows, FridgeLayout.STANDARD);
+    }
+
+    public void configureGrid(int newCols, int newRows, FridgeLayout layout) {
         this.cols = Math.max(2, newCols);
         this.rows = Math.max(2, newRows);
+        this.currentLayout = layout;
         specialShelfRow = -1;
         specialShelfMaxWeight = 0;
         packingOrderTarget = null;
         packingOrderItemId = null;
         packingOrderItemName = null;
         hasPrefilledItem = false;
+        this.blockedTiles.clear();
+        this.blockedTiles.addAll(layout.getBlockedTiles());
         this.tiles = new Tile[this.cols][this.rows];
         this.shelves.clear();
         this.placedItems.clear();
 
         for (int c = 0; c < this.cols; c++) {
             for (int r = 0; r < this.rows; r++) {
-                tiles[c][r] = new Tile(new GridPosition(c, r));
+                Tile tile = new Tile(new GridPosition(c, r));
+                if (layout.isBlocked(c, r)) {
+                    tile.setBlocked(true);
+                }
+                tiles[c][r] = tile;
             }
         }
         for (int r = 0; r < this.rows; r++) {
@@ -84,7 +101,7 @@ public class Fridge extends GameObject {
         }
         for (int c = position.getCol(); c < position.getCol() + size.getWidth(); c++) {
             for (int r = position.getRow(); r < position.getRow() + size.getHeight(); r++) {
-                if (!tiles[c][r].isEmpty()) {
+                if (!tiles[c][r].isEmpty() || tiles[c][r].isBlocked()) {
                     return false;
                 }
             }
@@ -115,6 +132,10 @@ public class Fridge extends GameObject {
 
         for (int c = targetPosition.getCol(); c < targetPosition.getCol() + size.getWidth(); c++) {
             Tile belowTile = tiles[c][row - 1];
+            // Blocked tiles act as solid ground and can support items above them
+            if (belowTile.isBlocked()) {
+                continue;
+            }
             if (belowTile.isEmpty() || belowTile.getOccupyingItem() == null) {
                 return PlacementResult.UNSTABLE;
             }
@@ -177,7 +198,12 @@ public class Fridge extends GameObject {
             if (pos != null && pos.getRow() > 0) {
                 boolean supported = true;
                 for (int c = pos.getCol(); c < pos.getCol() + item.getSize().getWidth(); c++) {
-                    if (tiles[c][pos.getRow() - 1].isEmpty()) {
+                    Tile belowTile = tiles[c][pos.getRow() - 1];
+                    // Blocked tiles act as solid ground and support items above them
+                    if (belowTile.isBlocked()) {
+                        continue;
+                    }
+                    if (belowTile.isEmpty()) {
                         supported = false;
                         break;
                     }
@@ -210,6 +236,10 @@ public class Fridge extends GameObject {
     public boolean isEveryTileOccupiedByLegalItem() {
         for (int c = 0; c < cols; c++) {
             for (int r = 0; r < rows; r++) {
+                // Skip blocked tiles — they don't need to be occupied
+                if (tiles[c][r].isBlocked()) {
+                    continue;
+                }
                 Item occupant = tiles[c][r].getOccupyingItem();
                 if (occupant == null || occupant.isTrap()) {
                     return false;
@@ -347,5 +377,16 @@ public class Fridge extends GameObject {
 
     public boolean hasPrefilledItem() {
         return hasPrefilledItem;
+    }
+
+    public FridgeLayout getCurrentLayout() {
+        return currentLayout;
+    }
+
+    public boolean isBlocked(int col, int row) {
+        if (col < 0 || col >= cols || row < 0 || row >= rows) {
+            return true;
+        }
+        return tiles[col][row].isBlocked();
     }
 }

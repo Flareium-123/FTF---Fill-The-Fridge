@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Align;
 import com.fillthefridge.FillTheFridgeGame;
 
 public class RunCompleteScreen extends BaseScreen {
@@ -45,11 +46,21 @@ public class RunCompleteScreen extends BaseScreen {
         game.getSpriteBatch().begin();
         BitmapFont title = game.getAssetManager().getTitleFont();
         BitmapFont body = game.getAssetManager().getBodyFont();
-        title.setColor(0.98f, 0.90f, 0.25f, 1f);
-        title.draw(game.getSpriteBatch(), "BOSS DEFEATED!", 415f, 500f);
-        body.setColor(Color.WHITE);
-        body.draw(game.getSpriteBatch(), "Three perfect fridge sorts kept every compartment safe.",
-            375f, 420f, 530f, 1, true);
+        drawFittedText(
+            game.getSpriteBatch(),
+            title,
+            "BOSS DEFEATED!",
+            new Rectangle(320f, 475f, 640f, 48f),
+            new Color(0.98f, 0.90f, 0.25f, 1f)
+        );
+        drawWrappedText(
+            game.getSpriteBatch(),
+            body,
+            "Three perfect fridge sorts kept every compartment safe.",
+            new Rectangle(340f, 395f, 600f, 50f),
+            Color.WHITE,
+            Align.center
+        );
         drawCenteredText(game.getSpriteBatch(), body, "MAIN MENU", menuButton, Color.WHITE);
         game.getSpriteBatch().end();
         renderTransitionOverlay(shapes);

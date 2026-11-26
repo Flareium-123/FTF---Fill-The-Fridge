@@ -6,7 +6,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
@@ -105,12 +104,7 @@ public abstract class BaseScreen implements Screen {
             Rectangle bounds,
             Color color
     ) {
-        font.setColor(color);
-        GlyphLayout layout = new GlyphLayout(font, text);
-        float tx = bounds.x + (bounds.width - layout.width) * 0.5f;
-        float ty = bounds.y + (bounds.height + layout.height) * 0.5f;
-        font.draw(batch, text, tx, ty);
-        font.setColor(Color.WHITE);
+        TextLayoutHelper.drawFitted(batch, font, text, bounds, color);
     }
 
     protected void drawFittedText(
@@ -120,22 +114,7 @@ public abstract class BaseScreen implements Screen {
             Rectangle bounds,
             Color color
     ) {
-        float originalScaleX = font.getData().scaleX;
-        float originalScaleY = font.getData().scaleY;
-        try {
-            GlyphLayout layout = new GlyphLayout();
-            layout.setText(font, text, color, bounds.width, com.badlogic.gdx.utils.Align.center, false);
-            if (layout.width > bounds.width) {
-                float scale = bounds.width / layout.width;
-                font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
-                layout.setText(font, text, color, bounds.width, com.badlogic.gdx.utils.Align.center, false);
-            }
-            float x = bounds.x + (bounds.width - layout.width) * 0.5f;
-            float y = bounds.y + (bounds.height + layout.height) * 0.5f;
-            font.draw(batch, layout, x, y);
-        } finally {
-            font.getData().setScale(originalScaleX, originalScaleY);
-        }
+        TextLayoutHelper.drawFitted(batch, font, text, bounds, color);
     }
 
     protected void drawWrappedText(
@@ -146,21 +125,7 @@ public abstract class BaseScreen implements Screen {
             Color color,
             int alignment
     ) {
-        float originalScaleX = font.getData().scaleX;
-        float originalScaleY = font.getData().scaleY;
-        try {
-            GlyphLayout layout = new GlyphLayout();
-            layout.setText(font, text, color, bounds.width, alignment, true);
-            if (layout.height > bounds.height) {
-                float scale = bounds.height / layout.height;
-                font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
-                layout.setText(font, text, color, bounds.width, alignment, true);
-            }
-            float y = bounds.y + (bounds.height + layout.height) * 0.5f;
-            font.draw(batch, layout, bounds.x, y);
-        } finally {
-            font.getData().setScale(originalScaleX, originalScaleY);
-        }
+        TextLayoutHelper.drawWrapped(batch, font, text, bounds, color, alignment);
     }
 
     @Override

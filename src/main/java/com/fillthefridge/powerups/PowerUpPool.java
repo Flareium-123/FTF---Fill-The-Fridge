@@ -35,6 +35,14 @@ public class PowerUpPool {
             case "shelf_rails" -> new ShelfRailsPowerUp();
             case "reusable_containers" -> new ReusableContainersPowerUp();
             case "second_wind" -> new SecondWindPowerUp();
+            case "hero_cold_storage_veteran" -> new ColdStorageVeteranPowerUp();
+            case "hero_fifo_master" -> new FifoMasterPowerUp();
+            case "hero_produce_whisperer" -> new ProduceWhispererPowerUp();
+            case "hero_space_optimizer" -> new SpaceOptimizerPowerUp();
+            case "hero_trap_hunter" -> new TrapHunterPowerUp();
+            case "hero_deep_freeze_specialist" -> new DeepFreezeSpecialistPowerUp();
+            case "hero_reinforced_stock" -> new ReinforcedStockPowerUp();
+            case "hero_time_bender" -> new TimeBenderPowerUp();
             default -> throw new IllegalArgumentException("Unknown saved power-up: " + id);
         };
     }

@@ -26,3 +26,6 @@ Sausage Link Artwork:
 Game Fonts (Open Sans):
 - Open Sans by The Open Sans Project Authors, sourced from Google Fonts.
 - Licensed under the SIL Open Font License 1.1; full license: assets/fonts/OFL.txt
+
+Sound Effects & Synthesizer:
+- Original synthesized 16-bit PCM sound effects (placement, chime, buzzer, trash, undo, fanfare).

@@ -26,6 +26,10 @@ public class ProceduralFridgeRenderer {
     private float tileHeight;
     private float animationClock;
 
+    // Reusable Color instances to avoid per-frame GC pressure
+    private final Color tempColor = new Color();
+    private final GlyphLayout labelLayout = new GlyphLayout();
+
     public ProceduralFridgeRenderer() {
         this.interiorBounds = new Rectangle(341f, 263f, 540f, 280f);
     }
@@ -82,9 +86,9 @@ public class ProceduralFridgeRenderer {
                 continue;
             }
             float centerY = interiorBounds.y + ((firstRow + lastRow + 1) * tileHeight) * 0.5f;
-            Color color = new Color(getCompartmentColor(compartment));
-            color.a = 1f;
-            font.setColor(color);
+            setCompartmentColor(compartment);
+            tempColor.a = 1f;
+            font.setColor(tempColor);
             drawCenteredLabel(batch, font, compartment.getDisplayName(), labelX, labelWidth, centerY + 6f);
             font.setColor(Color.WHITE);
             drawCenteredLabel(batch, font, compartment.getCategoryLabel(), labelX, labelWidth, centerY - 9f);
@@ -100,16 +104,16 @@ public class ProceduralFridgeRenderer {
         float width,
         float baselineY
     ) {
-        GlyphLayout layout = new GlyphLayout(font, text);
-        font.draw(batch, text, x + (width - layout.width) * 0.5f, baselineY);
+        labelLayout.setText(font, text);
+        font.draw(batch, text, x + (width - labelLayout.width) * 0.5f, baselineY);
     }
 
-    private Color getCompartmentColor(FridgeCompartment compartment) {
-        return switch (compartment) {
-            case LOWER_CHILLER -> new Color(0.30f, 0.67f, 0.94f, 0.20f);
-            case CHILLER -> new Color(0.34f, 0.78f, 0.56f, 0.20f);
-            case FREEZER -> new Color(0.70f, 0.54f, 0.96f, 0.20f);
-        };
+    private void setCompartmentColor(FridgeCompartment compartment) {
+        switch (compartment) {
+            case LOWER_CHILLER -> tempColor.set(0.30f, 0.67f, 0.94f, 0.20f);
+            case CHILLER -> tempColor.set(0.34f, 0.78f, 0.56f, 0.20f);
+            case FREEZER -> tempColor.set(0.70f, 0.54f, 0.96f, 0.20f);
+        }
     }
 
     public void renderFridgeStructure(
@@ -158,7 +162,21 @@ public class ProceduralFridgeRenderer {
                 float cellX = interiorBounds.x + c * tileWidth;
                 float cellY = interiorBounds.y + r * tileHeight;
                 Tile tile = fridge.getTile(c, r);
-                shapeRenderer.setColor(getCompartmentColor(fridge.getCompartmentForRow(r)));
+                // Draw blocked tiles (irregular layout)
+                if (tile.isBlocked()) {
+                    shapeRenderer.setColor(0.15f, 0.15f, 0.18f, 0.85f);
+                    shapeRenderer.rect(cellX + 1f, cellY + 1f, tileWidth - 2f, tileHeight - 2f);
+                    // Cross-hatch pattern for blocked tiles
+                    shapeRenderer.setColor(0.30f, 0.30f, 0.35f, 0.5f);
+                    shapeRenderer.rect(cellX + 3f, cellY + 3f, tileWidth - 6f, 2f);
+                    shapeRenderer.rect(cellX + 3f, cellY + tileHeight - 5f, tileWidth - 6f, 2f);
+                    shapeRenderer.rect(cellX + 3f, cellY + 3f, 2f, tileHeight - 6f);
+                    shapeRenderer.rect(cellX + tileWidth - 5f, cellY + 3f, 2f, tileHeight - 6f);
+                    continue;
+                }
+
+                setCompartmentColor(fridge.getCompartmentForRow(r));
+                shapeRenderer.setColor(tempColor);
                 shapeRenderer.rect(cellX + 1f, cellY + 1f, tileWidth - 2f, tileHeight - 2f);
 
                 if (r == fridge.getSpecialShelfRow()) {
@@ -194,9 +212,9 @@ public class ProceduralFridgeRenderer {
         for (int r = 0; r < rows; r++) {
             if (r == 0 || fridge.getCompartmentForRow(r) != fridge.getCompartmentForRow(r - 1)) {
                 FridgeCompartment compartment = fridge.getCompartmentForRow(r);
-                Color stripeColor = new Color(getCompartmentColor(compartment));
-                stripeColor.a = 0.75f;
-                shapeRenderer.setColor(stripeColor);
+                setCompartmentColor(compartment);
+                tempColor.a = 0.75f;
+                shapeRenderer.setColor(tempColor);
                 shapeRenderer.rect(interiorBounds.x, interiorBounds.y + r * tileHeight, 3f, tileHeight);
             }
         }
@@ -224,9 +242,9 @@ public class ProceduralFridgeRenderer {
             float labelHeight = 38f;
             shapeRenderer.setColor(0.035f, 0.065f, 0.09f, 0.78f);
             drawRoundedRect(shapeRenderer, labelX, centerY - labelHeight * 0.5f, labelWidth, labelHeight, 5f);
-            Color accent = new Color(getCompartmentColor(compartment));
-            accent.a = 0.95f;
-            shapeRenderer.setColor(accent);
+            setCompartmentColor(compartment);
+            tempColor.a = 0.95f;
+            shapeRenderer.setColor(tempColor);
             shapeRenderer.rect(labelX, centerY - labelHeight * 0.5f, 3f, labelHeight);
         }
     }
@@ -243,18 +261,17 @@ public class ProceduralFridgeRenderer {
             float drawW = size.getWidth() * tileWidth - 8f;
             float drawH = size.getHeight() * tileHeight - 8f;
 
-            Color borderColor;
             if (item.isTrap()) {
-                borderColor = new Color(0.96f, 0.48f, 0.50f, 0.95f);
+                tempColor.set(0.96f, 0.48f, 0.50f, 0.95f);
             } else if (item.isConfirmed()) {
-                borderColor = new Color(0.66f, 0.88f, 1f, 0.95f);
+                tempColor.set(0.66f, 0.88f, 1f, 0.95f);
             } else {
-                borderColor = new Color(0.88f, 0.94f, 1f, 0.80f);
+                tempColor.set(0.88f, 0.94f, 1f, 0.80f);
             }
 
             shapeRenderer.setColor(0.025f, 0.045f, 0.06f, 0.20f);
             shapeRenderer.rect(drawX, drawY, drawW, drawH);
-            shapeRenderer.setColor(borderColor);
+            shapeRenderer.setColor(tempColor);
             shapeRenderer.rect(drawX, drawY, drawW, 2f);
             shapeRenderer.rect(drawX, drawY + drawH - 2f, drawW, 2f);
             shapeRenderer.rect(drawX, drawY, 2f, drawH);
@@ -271,26 +288,27 @@ public class ProceduralFridgeRenderer {
         PlacementResult result = fridge.evaluatePlacement(selectedItem, hoverPos);
         GridSize size = selectedItem.getSize();
 
-        Color fillColor;
-        Color borderColor;
         float pulse = 0.5f + 0.5f * MathUtils.sin(animationClock * 8f);
 
         if (result == PlacementResult.LEGAL) {
-            fillColor = new Color(0.18f, 0.86f, 0.38f, 0.32f + pulse * 0.10f);
-            borderColor = new Color(0.10f, 0.72f, 0.26f, 0.95f);
+            tempColor.set(0.18f, 0.86f, 0.38f, 0.32f + pulse * 0.10f);
         } else {
-            fillColor = new Color(0.92f, 0.20f, 0.24f, 0.36f + pulse * 0.10f);
-            borderColor = new Color(0.82f, 0.10f, 0.14f, 0.95f);
+            tempColor.set(0.92f, 0.20f, 0.24f, 0.36f + pulse * 0.10f);
         }
 
         for (int c = hoverPos.getCol(); c < hoverPos.getCol() + size.getWidth(); c++) {
             for (int r = hoverPos.getRow(); r < hoverPos.getRow() + size.getHeight(); r++) {
                 float cellX = interiorBounds.x + c * tileWidth;
                 float cellY = interiorBounds.y + r * tileHeight;
-                shapeRenderer.setColor(fillColor);
+                shapeRenderer.setColor(tempColor);
                 shapeRenderer.rect(cellX + 2f, cellY + 2f, tileWidth - 4f, tileHeight - 4f);
 
-                shapeRenderer.setColor(borderColor);
+                if (result == PlacementResult.LEGAL) {
+                    tempColor.set(0.10f, 0.72f, 0.26f, 0.95f);
+                } else {
+                    tempColor.set(0.82f, 0.10f, 0.14f, 0.95f);
+                }
+                shapeRenderer.setColor(tempColor);
                 shapeRenderer.rect(cellX + 2f, cellY + 2f, tileWidth - 4f, 3f);
                 shapeRenderer.rect(cellX + 2f, cellY + tileHeight - 5f, tileWidth - 4f, 3f);
                 shapeRenderer.rect(cellX + 2f, cellY + 2f, 3f, tileHeight - 4f);
@@ -342,7 +360,8 @@ public class ProceduralFridgeRenderer {
         float drawW = size.getWidth() * tileWidth;
         float drawH = size.getHeight() * tileHeight;
 
-        selectedItem.renderItemSprite(batch, assetManager, smallFont, drawX, drawY, drawW, drawH, 0.55f);
+        float pulseAlpha = 0.52f + 0.16f * MathUtils.sin(animationClock * 5.0f);
+        selectedItem.renderItemSprite(batch, assetManager, smallFont, drawX, drawY, drawW, drawH, pulseAlpha);
     }
 
     public static void drawRoundedRect(
@@ -365,6 +384,14 @@ public class ProceduralFridgeRenderer {
 
     public Rectangle getInteriorBounds() {
         return interiorBounds;
+    }
+
+    public float getTileWidth() {
+        return tileWidth;
+    }
+
+    public float getTileHeight() {
+        return tileHeight;
     }
 
     private static final class Gdx {

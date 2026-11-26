@@ -17,7 +17,9 @@ import com.fillthefridge.logic.GameController;
 import com.fillthefridge.model.GamePhase;
 import com.fillthefridge.model.GameState;
 import com.fillthefridge.util.GameEventListener;
+import com.badlogic.gdx.math.MathUtils;
 import com.fillthefridge.util.GridPosition;
+import java.util.ArrayList;
 import java.util.List;
 
 public class GameplayScreen extends BaseScreen implements GameEventListener {
@@ -25,11 +27,20 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
     private final ProceduralFridgeRenderer fridgeRenderer;
     private final HudRenderer hudRenderer;
     private final boolean tutorialMode;
+    private final List<FloatingNotification> floatingNotifications = new ArrayList<>();
     private GridPosition currentHoverGridPosition;
     private GridPosition keyboardGridPosition;
     private int keyboardTrayIndex;
     private boolean keyboardGridMode;
     private int tutorialStep;
+
+    private boolean isDragging;
+    private boolean hasDragged;
+    private Item dragItem;
+    private float dragStartX;
+    private float dragStartY;
+    private float screenShakeTimer;
+    private float screenShakeIntensity;
 
     public GameplayScreen(FillTheFridgeGame game) {
         this(game, false);
@@ -48,12 +59,25 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
         game.getGameState().addEventListener(this);
         fridgeRenderer.updateLayout(game.getGameState().getFridge(), VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
         hudRenderer.updateTrayAndTrashBounds(game.getGameState());
+        isDragging = false;
+        hasDragged = false;
+        dragItem = null;
+        screenShakeTimer = 0f;
     }
 
     @Override
     public void hide() {
         super.hide();
         game.getGameState().removeEventListener(this);
+    }
+
+    public void triggerScreenShake(float duration, float intensity) {
+        this.screenShakeTimer = duration;
+        this.screenShakeIntensity = intensity;
+    }
+
+    public void spawnFloatingNotification(String text, float x, float y, Color color) {
+        floatingNotifications.add(new FloatingNotification(text, x, y, color));
     }
 
     @Override
@@ -97,6 +121,19 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
         Gdx.gl.glClearColor(0.45f, 0.78f, 0.96f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // Screen shake calculation
+        if (screenShakeTimer > 0f) {
+            screenShakeTimer = Math.max(0f, screenShakeTimer - delta);
+            float progress = screenShakeTimer / 0.38f;
+            float shakeX = (MathUtils.random() * 2f - 1f) * screenShakeIntensity * progress;
+            float shakeY = (MathUtils.random() * 2f - 1f) * screenShakeIntensity * progress;
+            camera.position.set(VIRTUAL_WIDTH * 0.5f + shakeX, VIRTUAL_HEIGHT * 0.5f + shakeY, 0f);
+            camera.update();
+        } else {
+            camera.position.set(VIRTUAL_WIDTH * 0.5f, VIRTUAL_HEIGHT * 0.5f, 0f);
+            camera.update();
+        }
+
         ShapeRenderer shapeRenderer = game.getShapeRenderer();
         SpriteBatch batch = game.getSpriteBatch();
 
@@ -108,13 +145,18 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
         batch.draw(game.getAssetManager().getTexture(AssetManager.FRIDGE_PHOTO), 0f, 0f, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
         batch.setColor(Color.WHITE);
         batch.end();
+        Item previewItem = state.getTray().getSelectedItem();
+        // During drag, use the dragItem so the preview highlight stays visible
+        if (isDragging && dragItem != null) {
+            previewItem = dragItem;
+        }
         fridgeRenderer.renderFridgeStructure(
             shapeRenderer,
             batch,
             game.getAssetManager().getSmallFont(),
             game.getAssetManager(),
             state.getFridge(),
-            state.getTray().getSelectedItem(),
+            previewItem,
             currentHoverGridPosition,
             state.getActivePowerUps()
         );
@@ -150,6 +192,39 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
             );
         }
 
+        // Render dragged item following cursor
+        if (isDragging && hasDragged && dragItem != null) {
+            batch.begin();
+            float dragW = dragItem.getSize().getWidth() * fridgeRenderer.getTileWidth() * 0.92f;
+            float dragH = dragItem.getSize().getHeight() * fridgeRenderer.getTileHeight() * 0.92f;
+            // Draw floating item centered at cursor with slight tilt
+            dragItem.renderItemSprite(
+                batch,
+                game.getAssetManager(),
+                game.getAssetManager().getSmallFont(),
+                mouse.x - dragW * 0.5f,
+                mouse.y - dragH * 0.5f,
+                dragW,
+                dragH,
+                0.88f
+            );
+            batch.end();
+        }
+
+        // Update and render floating notification text effects
+        floatingNotifications.removeIf(fn -> !fn.update(delta));
+        if (!floatingNotifications.isEmpty()) {
+            batch.begin();
+            BitmapFont font = game.getAssetManager().getSmallFont();
+            for (FloatingNotification fn : floatingNotifications) {
+                float alpha = Math.min(1.0f, fn.timer / (fn.maxTimer * 0.35f));
+                font.setColor(fn.color.r, fn.color.g, fn.color.b, alpha);
+                font.draw(batch, fn.text, fn.x - 60f, fn.y, 120f, Align.center, false);
+            }
+            font.setColor(Color.WHITE);
+            batch.end();
+        }
+
         if (tutorialMode && isTutorialPaused()) {
             renderTutorialBriefing(shapeRenderer, batch, mouse.x, mouse.y);
         }
@@ -178,7 +253,7 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
 
     private void handleUserInput(GameController controller, GameState state, float mouseX, float mouseY) {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            transitionTo(new MainMenuScreen(game));
+            transitionTo(new PauseScreen(game));
             return;
         }
         if (state.getCurrentPhase() != GamePhase.PLAYING) {
@@ -189,69 +264,157 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.V)) {
             controller.confirmPlacements();
+            game.getAudioFeedback().playClick();
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.F)) {
-            controller.activateManualDeepFreeze();
+            boolean ok = controller.activateManualDeepFreeze();
+            if (ok) {
+                game.getAudioFeedback().playFreeze();
+                spawnFloatingNotification("FREEZE!", 1120f, 448f, new Color(0.4f, 0.9f, 1f, 1f));
+            } else {
+                game.getAudioFeedback().playInvalidPlacement();
+            }
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.C)) {
-            controller.activateFifoCaddy();
+            boolean ok = controller.activateFifoCaddy();
+            if (ok) {
+                game.getAudioFeedback().playFreeze();
+                spawnFloatingNotification("FIFO PAUSE", 1120f, 448f, new Color(0.4f, 0.9f, 1f, 1f));
+            } else {
+                game.getAudioFeedback().playInvalidPlacement();
+            }
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
             controller.rotateSelectedItem();
+            game.getAudioFeedback().playClick();
         }
         if (Gdx.input.isKeyJustPressed(game.getSettings().getUndoKeyCode())) {
-            controller.undoLastPlacement();
+            boolean ok = controller.undoLastPlacement();
+            if (ok) {
+                game.getAudioFeedback().playUndo();
+                spawnFloatingNotification("UNDO", 1120f, 508f, new Color(0.5f, 0.8f, 1f, 1f));
+            } else {
+                game.getAudioFeedback().playInvalidPlacement();
+            }
         }
 
         if (Gdx.input.isButtonJustPressed(Input.Buttons.RIGHT)) {
-            if (tutorialMode) {
-                game.getAudioFeedback().playClick();
+            boolean ok = controller.undoLastPlacement();
+            if (ok) {
+                game.getAudioFeedback().playUndo();
+                spawnFloatingNotification("UNDO", mouseX, mouseY + 20f, new Color(0.5f, 0.8f, 1f, 1f));
+            } else {
+                game.getAudioFeedback().playInvalidPlacement();
             }
-            controller.undoLastPlacement();
             return;
         }
 
         if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
-            if (tutorialMode) {
-                game.getAudioFeedback().playClick();
-            }
             if (hudRenderer.getMenuButtonBounds().contains(mouseX, mouseY)) {
+                game.getAudioFeedback().playClick();
                 transitionTo(new MainMenuScreen(game));
                 return;
             }
             if (hudRenderer.getConfirmButtonBounds().contains(mouseX, mouseY)) {
+                game.getAudioFeedback().playClick();
                 controller.confirmPlacements();
                 return;
             }
             if (hudRenderer.getUndoButtonBounds().contains(mouseX, mouseY)) {
-                controller.undoLastPlacement();
+                boolean ok = controller.undoLastPlacement();
+                if (ok) {
+                    game.getAudioFeedback().playUndo();
+                    spawnFloatingNotification("UNDO", 1120f, 508f, new Color(0.5f, 0.8f, 1f, 1f));
+                } else {
+                    game.getAudioFeedback().playInvalidPlacement();
+                }
                 return;
             }
             if (hudRenderer.getFreezeButtonBounds().contains(mouseX, mouseY)) {
-                controller.activateManualDeepFreeze();
+                boolean ok = controller.activateManualDeepFreeze();
+                if (ok) {
+                    game.getAudioFeedback().playFreeze();
+                    spawnFloatingNotification("FREEZE!", 1120f, 448f, new Color(0.4f, 0.9f, 1f, 1f));
+                } else {
+                    game.getAudioFeedback().playInvalidPlacement();
+                }
                 return;
             }
             if (state.getTrashBin().containsPoint(mouseX, mouseY)) {
-                controller.trashSelectedItem();
+                boolean ok = controller.trashSelectedItem();
+                if (ok) {
+                    game.getAudioFeedback().playTrash();
+                    spawnFloatingNotification("+TRASHED", 177f, 380f, new Color(1f, 0.85f, 0.25f, 1f));
+                } else {
+                    game.getAudioFeedback().playInvalidPlacement();
+                }
                 return;
             }
 
             List<Item> activeItems = state.getTray().getActiveItems();
             List<Rectangle> slotRects = hudRenderer.getTraySlotBounds();
+            boolean shiftHeld = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
             for (int i = 0; i < activeItems.size() && i < slotRects.size(); i++) {
                 if (slotRects.get(i).contains(mouseX, mouseY)) {
                     keyboardTrayIndex = i;
                     keyboardGridMode = false;
                     keyboardGridPosition = clampKeyboardGridPosition(state, currentHoverGridPosition);
-                    controller.selectTrayItem(activeItems.get(i));
+                    // Always keep the item selected when starting a drag, even without Shift
+                    controller.selectTrayItem(activeItems.get(i), true);
+                    game.getAudioFeedback().playClick();
+                    isDragging = true;
+                    hasDragged = false;
+                    dragItem = activeItems.get(i);
+                    dragStartX = mouseX;
+                    dragStartY = mouseY;
                     return;
                 }
             }
             GridPosition mouseGridPosition = fridgeRenderer.screenToGridPosition(state.getFridge(), mouseX, mouseY);
             if (mouseGridPosition != null) {
                 keyboardGridMode = false;
-                controller.handleFridgeLeftClick(mouseGridPosition);
+                boolean ok = controller.handleFridgeLeftClick(mouseGridPosition);
+                if (ok) {
+                    game.getAudioFeedback().playPlaceItem();
+                    spawnFloatingNotification("+STORED", mouseX, mouseY + 20f, new Color(0.35f, 0.98f, 0.55f, 1f));
+                } else {
+                    game.getAudioFeedback().playInvalidPlacement();
+                }
             }
+        }
+
+        // Mouse drag tracking while held
+        if (Gdx.input.isButtonPressed(Input.Buttons.LEFT)) {
+            if (isDragging && !hasDragged) {
+                if (Math.abs(mouseX - dragStartX) > 8f || Math.abs(mouseY - dragStartY) > 8f) {
+                    hasDragged = true;
+                }
+            }
+        } else if (isDragging) {
+            // Drag released
+            if (hasDragged) {
+                GridPosition releaseGridPos = fridgeRenderer.screenToGridPosition(state.getFridge(), mouseX, mouseY);
+                if (releaseGridPos != null) {
+                    boolean ok = controller.handleFridgeLeftClick(releaseGridPos);
+                    if (ok) {
+                        game.getAudioFeedback().playPlaceItem();
+                        spawnFloatingNotification("+STORED", mouseX, mouseY + 20f, new Color(0.35f, 0.98f, 0.55f, 1f));
+                    } else {
+                        game.getAudioFeedback().playInvalidPlacement();
+                    }
+                } else if (state.getTrashBin().containsPoint(mouseX, mouseY)) {
+                    boolean ok = controller.trashSelectedItem();
+                    if (ok) {
+                        game.getAudioFeedback().playTrash();
+                        spawnFloatingNotification("+TRASHED", 177f, 380f, new Color(1f, 0.85f, 0.25f, 1f));
+                    } else {
+                        game.getAudioFeedback().playInvalidPlacement();
+                    }
+                }
+            }
+            isDragging = false;
+            hasDragged = false;
+            dragItem = null;
         }
     }
 
@@ -266,11 +429,15 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
             keyboardTrayIndex = Math.min(keyboardTrayIndex, activeItems.size() - 1);
             if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT)) {
                 keyboardTrayIndex = Math.max(0, keyboardTrayIndex - 1);
-            } else if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) {
+                return false;
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT)) {
                 keyboardTrayIndex = Math.min(activeItems.size() - 1, keyboardTrayIndex + 1);
+                return false;
             }
             if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-                controller.selectTrayItem(activeItems.get(keyboardTrayIndex));
+                boolean shiftHeld = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+                controller.selectTrayItem(activeItems.get(keyboardTrayIndex), shiftHeld);
                 keyboardGridPosition = clampKeyboardGridPosition(state, currentHoverGridPosition);
                 keyboardGridMode = true;
                 return true;
@@ -294,10 +461,22 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
         keyboardGridMode = true;
         currentHoverGridPosition = keyboardGridPosition;
         if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-            controller.handleFridgeLeftClick(keyboardGridPosition);
+            boolean ok = controller.handleFridgeLeftClick(keyboardGridPosition);
+            if (ok) {
+                game.getAudioFeedback().playPlaceItem();
+                spawnFloatingNotification("+STORED", 640f, 400f, new Color(0.35f, 0.98f, 0.55f, 1f));
+            } else {
+                game.getAudioFeedback().playInvalidPlacement();
+            }
             return true;
         } else if (Gdx.input.isKeyJustPressed(Input.Keys.X)) {
-            controller.trashSelectedItem();
+            boolean ok = controller.trashSelectedItem();
+            if (ok) {
+                game.getAudioFeedback().playTrash();
+                spawnFloatingNotification("+TRASHED", 177f, 380f, new Color(1f, 0.85f, 0.25f, 1f));
+            } else {
+                game.getAudioFeedback().playInvalidPlacement();
+            }
             return true;
         }
         return false;
@@ -438,8 +617,14 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
                 drawCenteredText(batch, title, "TUTORIAL - LIVE GAMEPLAY", new Rectangle(250f, 455f, 780f, 44f), title.getColor());
                 body.setColor(Color.WHITE);
                 drawCenteredText(batch, body, heading, new Rectangle(255f, 394f, 770f, 46f), Color.WHITE);
-                body.setColor(0.88f, 0.92f, 0.97f, 1f);
-                body.draw(batch, explanation, 285f, 366f, 710f, Align.center, true);
+                drawWrappedText(
+                    batch,
+                    body,
+                    explanation,
+                    new Rectangle(285f, 298f, 710f, 80f),
+                    new Color(0.88f, 0.92f, 0.97f, 1f),
+                    Align.center
+                );
                 drawCenteredText(
                     batch,
                     body,
@@ -496,6 +681,8 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
     @Override
     public void onLivesChanged(int currentLives, int changeAmount, String reason) {
         if (changeAmount < 0) {
+            game.getAudioFeedback().playLifeLoss();
+            triggerScreenShake(0.38f, 9.0f);
             hudRenderer.triggerLifeShake();
             hudRenderer.showNotification(reason + " (" + currentLives + " lives left)", new Color(1.0f, 0.35f, 0.35f, 1f), 2.8f);
         } else {
@@ -505,6 +692,7 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
 
     @Override
     public void onStageCleared(int stageNumber) {
+        game.getAudioFeedback().playStageClear();
         if (stageNumber == com.fillthefridge.logic.ProgressiveDifficultyStrategy.FINAL_STAGE) {
             hudRenderer.showNotification(
                 "Boss hit! " + game.getGameController().getBossHealth() + " sorts remain.",
@@ -518,11 +706,40 @@ public class GameplayScreen extends BaseScreen implements GameEventListener {
 
     @Override
     public void onItemSpoiled(Item item) {
+        game.getAudioFeedback().playLifeLoss();
+        triggerScreenShake(0.40f, 10.0f);
         hudRenderer.triggerLifeShake();
     }
 
     @Override
     public void onWarningMessage(String message) {
+        if (message != null && (message.contains("Urgent") || message.contains("EVENT") || message.contains("Three undos") || message.contains("spoiled"))) {
+            game.getAudioFeedback().playWarning();
+        }
         hudRenderer.showNotification(message, new Color(0.98f, 0.84f, 0.24f, 1f), 2.4f);
+    }
+
+    private static class FloatingNotification {
+        final String text;
+        final float x;
+        float y;
+        float timer;
+        final float maxTimer;
+        final Color color;
+
+        FloatingNotification(String text, float x, float y, Color color) {
+            this.text = text;
+            this.x = x;
+            this.y = y;
+            this.color = new Color(color);
+            this.timer = 0.85f;
+            this.maxTimer = 0.85f;
+        }
+
+        boolean update(float delta) {
+            timer -= delta;
+            y += delta * 46f;
+            return timer > 0f;
+        }
     }
 }

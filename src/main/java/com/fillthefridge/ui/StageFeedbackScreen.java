@@ -105,7 +105,10 @@ public class StageFeedbackScreen extends BaseScreen {
             drawCenteredText(batch, subtitle, contract.getTitle(), new Rectangle(270f, 476f, 740f, 38f),
                 subtitle.getColor());
             body.setColor(0.89f, 0.92f, 0.89f, 1f);
-            body.draw(batch, contract.getObjective(), 300f, 453f, 680f, Align.center, true);
+            drawWrappedText(
+                batch, body, contract.getObjective(), new Rectangle(300f, 414f, 680f, 50f),
+                body.getColor(), Align.center
+            );
         }
 
         subtitle.setColor(controller.didStageContractSucceed()
@@ -118,16 +121,18 @@ public class StageFeedbackScreen extends BaseScreen {
         drawCenteredText(batch, small, "FOOD-SAFETY TAKEAWAYS",
             new Rectangle(300f, 343f, 680f, 25f), small.getColor());
         body.setColor(0.88f, 0.91f, 0.88f, 1f);
-        body.draw(batch, "Separate raw meat from ready-to-eat food to limit cross-contamination.",
-            300f, 320f, 680f, Align.center, true);
-        body.draw(batch, "Keep trash outside: it can contaminate food and uses clean space.",
-            300f, 294f, 680f, Align.center, true);
-        body.draw(batch, "Don't discard fresh food: that wastes food, money and resources.",
-            300f, 268f, 680f, Align.center, true);
+        drawWrappedText(batch, body, "Separate raw meat from ready-to-eat food to limit cross-contamination.",
+            new Rectangle(300f, 307f, 680f, 21f), body.getColor(), Align.center);
+        drawWrappedText(batch, body, "Keep trash outside: it can contaminate food and uses clean space.",
+            new Rectangle(300f, 281f, 680f, 21f), body.getColor(), Align.center);
+        drawWrappedText(batch, body, "Don't discard fresh food: that wastes food, money and resources.",
+            new Rectangle(300f, 255f, 680f, 21f), body.getColor(), Align.center);
         small.setColor(0.81f, 0.87f, 0.82f, 1f);
         if (contract != null) {
-            small.draw(batch, "CONTRACT LESSON: " + contract.getEducationalNote(),
-                300f, 239f, 680f, Align.center, true);
+            drawWrappedText(
+                batch, small, "CONTRACT LESSON: " + contract.getEducationalNote(),
+                new Rectangle(300f, 211f, 680f, 30f), small.getColor(), Align.center
+            );
         }
 
         if (bossStage && controller.getBossHealth() > 0) {
@@ -136,12 +141,16 @@ public class StageFeedbackScreen extends BaseScreen {
                 "NEXT: " + controller.getBossPhaseTitle(),
                 new Rectangle(270f, 194f, 740f, 30f), subtitle.getColor());
             small.setColor(0.94f, 0.88f, 0.78f, 1f);
-            small.draw(batch, controller.getBossPhaseDescription(),
-                300f, 173f, 680f, Align.center, true);
+            drawWrappedText(
+                batch, small, controller.getBossPhaseDescription(),
+                new Rectangle(300f, 151f, 680f, 34f), small.getColor(), Align.center
+            );
         } else if (!bossStage) {
             small.setColor(0.80f, 0.85f, 0.82f, 1f);
-            small.draw(batch, "Route rooms change the next challenge: choose a reward and read its contract.",
-                300f, 195f, 680f, Align.center, true);
+            drawWrappedText(
+                batch, small, "Route rooms change the next challenge: choose a reward and read its contract.",
+                new Rectangle(300f, 179f, 680f, 31f), small.getColor(), Align.center
+            );
         }
 
         String buttonText = bossStage

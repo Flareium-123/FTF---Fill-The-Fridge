@@ -98,6 +98,10 @@ public class FillTheFridgeGame extends Game {
                 throw new IllegalStateException("Stage " + stage + " did not offer valid map rewards.");
             }
             gameController.choosePowerUp(choices.get(0));
+            if (stage == ProgressiveDifficultyStrategy.FINAL_STAGE - 1
+                && gameState.getCurrentPhase() == GamePhase.PRE_BOSS_EVENT) {
+                gameController.confirmPreBossEvent();
+            }
             GamePhase expectedPhase = stage == ProgressiveDifficultyStrategy.FINAL_STAGE - 1
                     ? GamePhase.BOSS_INTRO
                     : GamePhase.PLAYING;

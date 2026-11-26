@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Align;
 import com.fillthefridge.FillTheFridgeGame;
 import com.fillthefridge.assets.AssetManager;
 
@@ -85,8 +86,7 @@ public class TutorialScreen extends BaseScreen {
         drawTutorialText(batch, assets);
         drawTrayItems(batch, assets);
         drawPlacedItems(batch, assets);
-        assets.getSmallFont().setColor(Color.WHITE);
-        assets.getSmallFont().draw(batch, "TRASH BIN", TRASH.x + 64f, TRASH.y + 35f);
+        drawCenteredText(batch, assets.getSmallFont(), "TRASH BIN", TRASH, Color.WHITE);
         drawCenteredText(batch, assets.getBodyFont(), "BACK TO MENU", BACK, Color.WHITE);
         batch.end();
         renderTransitionOverlay(shapes);
@@ -183,25 +183,58 @@ public class TutorialScreen extends BaseScreen {
         BitmapFont heading = assets.getSubtitleFont();
         BitmapFont body = assets.getBodyFont();
         BitmapFont small = assets.getSmallFont();
-        title.setColor(0.98f, 0.90f, 0.25f, 1f);
-        title.draw(batch, "LEARN BY SORTING", 430f, 635f);
-        heading.setColor(0.45f, 0.82f, 1f, 1f);
-        heading.draw(batch, "Grocery tray", 195f, 550f);
-        heading.draw(batch, "Your fridge", 580f, 550f);
-        heading.draw(batch, "Step-by-step", 850f, 550f);
-        body.setColor(Color.WHITE);
-        body.draw(batch, STEP_TEXT[Math.min(step, STEP_TEXT.length - 1)], 850f, 505f, 250f, 1, true);
+
+        TextLayoutHelper.drawFittedText(batch, title, "LEARN BY SORTING", 400f, 610f, 480f, 45f,
+            new Color(0.98f, 0.90f, 0.25f, 1f), Align.center);
+        TextLayoutHelper.drawFittedText(batch, heading, "Grocery tray", 190f, 535f, 235f, 30f,
+            new Color(0.45f, 0.82f, 1f, 1f), Align.left);
+        TextLayoutHelper.drawFittedText(batch, heading, "Your fridge", 500f, 535f, 300f, 30f,
+            new Color(0.45f, 0.82f, 1f, 1f), Align.center);
+        TextLayoutHelper.drawFittedText(batch, heading, "Step-by-step", 850f, 535f, 260f, 30f,
+            new Color(0.45f, 0.82f, 1f, 1f), Align.left);
+
+        TextLayoutHelper.drawWrappedText(
+            batch,
+            body,
+            STEP_TEXT[Math.min(step, STEP_TEXT.length - 1)],
+            850f,
+            365f,
+            260f,
+            155f,
+            Color.WHITE,
+            Align.left
+        );
+
         small.setColor(0.85f, 0.91f, 0.98f, 1f);
         small.draw(batch, "FREEZER / MEAT", BOARD.x + 10f, BOARD.y + 3f * (BOARD.height / 3f) - 12f);
         small.draw(batch, "CHILLER / PRODUCE", BOARD.x + 10f, BOARD.y + 2f * (BOARD.height / 3f) - 12f);
         small.draw(batch, "LOWER CHILLER / LIQUIDS", BOARD.x + 10f, BOARD.y + BOARD.height / 3f - 12f);
+
         if (!feedback.isEmpty()) {
-            small.setColor(1f, 0.76f, 0.38f, 1f);
-            small.draw(batch, feedback, 850f, 340f, 245f, 1, true);
+            TextLayoutHelper.drawWrappedText(
+                batch,
+                small,
+                feedback,
+                850f,
+                300f,
+                260f,
+                55f,
+                new Color(1f, 0.76f, 0.38f, 1f),
+                Align.left
+            );
         }
-        small.setColor(0.76f, 0.86f, 0.96f, 1f);
-        small.draw(batch, "Select a tray item, then click a shelf or the bin as instructed.",
-            850f, 285f, 245f, 1, true);
+
+        TextLayoutHelper.drawWrappedText(
+            batch,
+            small,
+            "Select a tray item, then click a shelf or the bin as instructed.",
+            850f,
+            230f,
+            260f,
+            60f,
+            new Color(0.76f, 0.86f, 0.96f, 1f),
+            Align.left
+        );
     }
 
     private void drawTrayItems(SpriteBatch batch, AssetManager assets) {
@@ -210,11 +243,29 @@ public class TutorialScreen extends BaseScreen {
             Texture texture = assets.getTexture(TEXTURE_NAMES[i]);
             batch.draw(texture, card.x + 10f, card.y + 8f, 50f, 50f);
             BitmapFont small = assets.getSmallFont();
-            small.setColor(Color.WHITE);
-            small.draw(batch, ITEM_NAMES[i], card.x + 72f, card.y + 42f);
+            TextLayoutHelper.drawFittedText(
+                batch,
+                small,
+                ITEM_NAMES[i],
+                card.x + 68f,
+                card.y + 32f,
+                card.width - 76f,
+                24f,
+                Color.WHITE,
+                Align.left
+            );
             if (ITEM_IDS[i].equals(selectedItemId)) {
-                small.setColor(0.98f, 0.86f, 0.30f, 1f);
-                small.draw(batch, "SELECTED", card.x + 72f, card.y + 20f);
+                TextLayoutHelper.drawFittedText(
+                    batch,
+                    small,
+                    "SELECTED",
+                    card.x + 68f,
+                    card.y + 10f,
+                    card.width - 76f,
+                    20f,
+                    new Color(0.98f, 0.86f, 0.30f, 1f),
+                    Align.left
+                );
             }
         }
     }

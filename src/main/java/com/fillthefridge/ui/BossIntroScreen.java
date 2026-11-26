@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Align;
 import com.fillthefridge.FillTheFridgeGame;
 import com.fillthefridge.assets.AssetManager;
 
@@ -51,8 +52,13 @@ public class BossIntroScreen extends BaseScreen {
         AssetManager assets = game.getAssetManager();
         batch.begin();
         BitmapFont title = assets.getTitleFont();
-        title.setColor(1f, 0.80f, 0.31f, 1f);
-        title.draw(batch, "BOSS STAGE", 472f, 620f);
+        drawFittedText(
+            batch,
+            title,
+            "BOSS STAGE",
+            new Rectangle(320f, 595f, 640f, 42f),
+            new Color(1f, 0.80f, 0.31f, 1f)
+        );
         batch.draw(assets.getTexture(AssetManager.JUNK_FOOD_MONSTER), 535f, 275f, 210f, 190f);
         batch.end();
 
@@ -74,20 +80,45 @@ public class BossIntroScreen extends BaseScreen {
         BitmapFont body = assets.getBodyFont();
         BitmapFont small = assets.getSmallFont();
         var controller = game.getGameController();
-        heading.setColor(1f, 0.48f, 0.32f, 1f);
-        heading.draw(batch, "THE JUNK-FOOD MONSTER", 395f, 240f);
-        body.setColor(Color.WHITE);
-        body.draw(batch, "Three successful sorts deplete the boss's three health points.",
-            385f, 205f, 510f, 1, true);
-        small.setColor(1f, 0.78f, 0.47f, 1f);
-        small.draw(batch, "PHASE 1 — " + controller.getBossPhaseTitle(),
-            430f, 178f, 420f, 1, true);
-        small.setColor(0.94f, 0.90f, 0.82f, 1f);
-        small.draw(batch, controller.getBossPhaseDescription(),
-            385f, 157f, 510f, 1, true);
+
+        drawFittedText(
+            batch,
+            heading,
+            "THE JUNK-FOOD MONSTER",
+            new Rectangle(320f, 235f, 640f, 30f),
+            new Color(1f, 0.48f, 0.32f, 1f)
+        );
+        drawWrappedText(
+            batch,
+            body,
+            "Three successful sorts deplete the boss's three health points.",
+            new Rectangle(340f, 206f, 600f, 26f),
+            Color.WHITE,
+            Align.center
+        );
+        drawFittedText(
+            batch,
+            small,
+            "PHASE 1 — " + controller.getBossPhaseTitle(),
+            new Rectangle(340f, 180f, 600f, 22f),
+            new Color(1f, 0.78f, 0.47f, 1f)
+        );
+        drawWrappedText(
+            batch,
+            small,
+            controller.getBossPhaseDescription(),
+            new Rectangle(340f, 154f, 600f, 24f),
+            new Color(0.94f, 0.90f, 0.82f, 1f),
+            Align.center
+        );
         drawCenteredText(batch, heading, "FACE THE BOSS", START_BUTTON, Color.WHITE);
-        small.setColor(0.90f, 0.90f, 0.94f, 1f);
-        small.draw(batch, "Press ENTER or SPACE", 560f, 58f);
+        drawFittedText(
+            batch,
+            small,
+            "Press ENTER or SPACE",
+            new Rectangle(465f, 52f, 350f, 22f),
+            new Color(0.90f, 0.90f, 0.94f, 1f)
+        );
         batch.end();
         renderTransitionOverlay(shapes);
     }

@@ -2,6 +2,14 @@ package com.fillthefridge.logic;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
+import com.fillthefridge.events.ColdChainEventCard;
+import com.fillthefridge.events.EventCard;
+import com.fillthefridge.events.EventCardPool;
+import com.fillthefridge.events.MysteryBoxEventCard;
+import com.fillthefridge.events.PreBossEventCard;
+import com.fillthefridge.events.PowerOutageEventCard;
+import com.fillthefridge.events.ProduceClusterEventCard;
+import com.fillthefridge.model.FridgeLayout;
 import com.fillthefridge.items.Item;
 import com.fillthefridge.items.ItemCatalog;
 import com.fillthefridge.model.Fridge;
@@ -28,7 +36,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class GameController {
-    public static final int BOSS_HEALTH = 3;
+    public static final int BOSS_HEALTH = 5;
     public static final int UNDO_ACTIONS_PER_LIFE = 3;
 
     private final GameState gameState;
@@ -55,6 +63,11 @@ public class GameController {
     private boolean inspectionRouteActive;
     private final List<String> recentlyUnlockedPowerUpIds;
     private int undoActionsSinceLifeLoss;
+
+    // Event card system
+    private EventCardPool eventCardPool;
+    private EventCard currentEventCard;
+    private PreBossEventCard preBossEventCard;
 
     private static final List<String> STARTING_POWER_UP_IDS = List.of(
         "cold_snap", "deep_freeze", "ghost_fit", "sniff_test", "trash_compactor",
@@ -84,10 +97,16 @@ public class GameController {
     }
 
     public void startNewRun() {
+        startNewRun(null);
+    }
+
+    public void startNewRun(PowerUp startingPowerUp) {
         gameState.resetRun();
         undoActionsSinceLifeLoss = 0;
         runSeed = ThreadLocalRandom.current().nextLong() ^ baseSeed;
         powerUpPool = new PowerUpPool(runSeed);
+        eventCardPool = new EventCardPool(runSeed);
+        currentEventCard = null;
         bossHealth = BOSS_HEALTH;
         inspectionRouteActive = false;
         recentlyUnlockedPowerUpIds.clear();
@@ -96,6 +115,9 @@ public class GameController {
         currentMapNodeIndexes.clear();
         currentRouteRoomTypes.clear();
         currentStageContract = StageContract.PRIORITIZE_PERISHABLE;
+        if (startingPowerUp != null) {
+            startingPowerUp.apply(gameState);
+        }
         startStage(1);
     }
 
@@ -118,16 +140,25 @@ public class GameController {
     }
 
     public boolean hasSavedProgress() {
+        if (Gdx.app == null) {
+            return false;
+        }
         return Gdx.app.getPreferences("fill-the-fridge-save").getBoolean("available", false);
     }
 
     public boolean saveProgress() {
-        if (gameState.getCurrentPhase() != GamePhase.EDUCATIONAL_FEEDBACK
-            || (isBossStage() && bossHealth <= 0)) {
+        if (Gdx.app == null) {
+            return false;
+        }
+        if (gameState.getCurrentPhase() == GamePhase.EDUCATIONAL_FEEDBACK) {
+            if (isBossStage() && bossHealth <= 0) {
+                return false;
+            }
+            continueAfterFeedback();
+        } else if (gameState.getCurrentPhase() != GamePhase.MAP_SELECTION) {
             return false;
         }
 
-        continueAfterFeedback();
         boolean bossCheckpoint = gameState.getCurrentStageNumber() == ProgressiveDifficultyStrategy.FINAL_STAGE
             && gameState.getCurrentPhase() == GamePhase.PLAYING;
         if (!bossCheckpoint && gameState.getCurrentPhase() != GamePhase.MAP_SELECTION) {
@@ -153,6 +184,9 @@ public class GameController {
     }
 
     public boolean resumeSavedProgress() {
+        if (Gdx.app == null) {
+            return false;
+        }
         Preferences preferences = Gdx.app.getPreferences("fill-the-fridge-save");
         if (!preferences.getBoolean("available", false)) {
             return false;
@@ -282,6 +316,22 @@ public class GameController {
         gameState.setCurrentStageNumber(stageNumber);
         gameState.getUndoStack().clear();
 
+        // Draw event card for this stage (skip boss stages)
+        if (stageNumber != ProgressiveDifficultyStrategy.FINAL_STAGE && eventCardPool != null) {
+            if (currentEventCard != null) {
+                currentEventCard.onStageEnd();
+            }
+            currentEventCard = eventCardPool.drawEventCard(stageNumber, runSeed ^ stageNumber);
+            if (currentEventCard != null) {
+                gameState.notifyWarningMessage("EVENT: " + currentEventCard.getName() + " — " + currentEventCard.getDescription());
+            }
+        } else {
+            if (currentEventCard != null) {
+                currentEventCard.onStageEnd();
+                currentEventCard = null;
+            }
+        }
+
         StageConfig config = difficultyStrategy.createStageConfig(stageNumber, runSeed);
         if (stageNumber == ProgressiveDifficultyStrategy.FINAL_STAGE) {
             config = configureBossPhase(config);
@@ -298,13 +348,18 @@ public class GameController {
             if (item.getCategory() == ItemCategory.VEGETABLE) {
                 item.addBonusTime(produceTimerBonus);
             }
-            item.addBonusTime(routeTimerBonus);
             if (!item.isTrap()) {
+                item.addBonusTime(routeTimerBonus);
                 item.addBonusTime(-routeTimerPenalty);
             }
         }
 
-        gameState.getFridge().configureGrid(config.getGridCols(), config.getGridRows());
+        // Select a random fridge layout for this stage
+        FridgeLayout layout = selectFridgeLayout(stageNumber);
+        gameState.getFridge().configureGrid(config.getGridCols(), config.getGridRows(), layout);
+        if (layout != FridgeLayout.STANDARD) {
+            gameState.notifyWarningMessage("Fridge layout: " + layout.getDisplayName());
+        }
         gameState.getFridge().setReinforcedShelves(gameState.getActivePowerUps().isReinforcedShelvesEnabled());
         gameState.getFridge().setSpecialShelfRule(config.getSpecialShelfRow(), config.getSpecialShelfMaxWeight());
         PlacementAction packingOrder = currentGeneratedStage.getPackingOrderPlacement();
@@ -346,8 +401,11 @@ public class GameController {
                 gameState.getActivePowerUps().hasColdSnapThermostatSynergy() ? 8f : 5f
             );
         }
-        if (gameState.getActivePowerUps().hasProduceCrisperSynergy()) {
-            gameState.getTray().addBonusTimeToCategory(ItemCategory.VEGETABLE, 2f);
+        if (gameState.getActivePowerUps().consumePendingInitialDeepFreeze()) {
+            Item urgent = gameState.getTray().findMostUrgentItem();
+            if (urgent != null) {
+                urgent.applyDeepFreeze(3.0f);
+            }
         }
         gameState.getActivePowerUps().refreshFifoCaddyCharge();
         if (gameState.getActivePowerUps().hasFreezeCaddySynergy()) {
@@ -357,6 +415,12 @@ public class GameController {
         reusableContainerUsed = false;
         firstFoodPlacementChecked = false;
         stageContractComplete = currentStageContract != StageContract.PRIORITIZE_PERISHABLE;
+
+        // Apply event card after stage is set up
+        if (currentEventCard != null) {
+            currentEventCard.apply(gameState);
+        }
+
         gameState.setCurrentPhase(GamePhase.PLAYING);
         stageClearBannerTimer = 0f;
     }
@@ -366,18 +430,49 @@ public class GameController {
         int trashSlots = config.getTrashSlots();
         int trayCapacity = config.getTrayCapacity();
         float timerMultiplier = config.getTimerMultiplier();
-        if (bossHealth == 3) {
-            timerMultiplier *= 0.78f;
-        } else if (bossHealth == 2) {
-            trayCapacity = Math.max(2, trayCapacity - 1);
-        } else {
-            traps += 1;
-            trashSlots += 1;
+        float awkwardShapeProb = config.getAwkwardShapeProbability();
+
+        // 5 boss phases, each with escalating difficulty
+        switch (bossHealth) {
+            case 5 -> {
+                // Phase 1: Rush Order — 30% less timer, more awkward shapes
+                timerMultiplier *= 0.70f;
+                awkwardShapeProb = Math.min(1f, awkwardShapeProb + 0.2f);
+            }
+            case 4 -> {
+                // Phase 2: Crowded Tray — reduced tray capacity, faster timers
+                trayCapacity = Math.max(2, trayCapacity - 1);
+                timerMultiplier *= 0.85f;
+            }
+            case 3 -> {
+                // Phase 3: Trap Wave — extra traps, extra trash slots needed
+                traps += 2;
+                trashSlots += 1;
+                timerMultiplier *= 0.90f;
+            }
+            case 2 -> {
+                // Phase 4: Overstocked — even more items, tighter space
+                trayCapacity = Math.max(2, trayCapacity - 2);
+                traps += 1;
+                timerMultiplier *= 0.80f;
+                awkwardShapeProb = Math.min(1f, awkwardShapeProb + 0.3f);
+            }
+            case 1 -> {
+                // Phase 5: Final Stand — everything at once
+                traps += 2;
+                trashSlots += 1;
+                timerMultiplier *= 0.70f;
+                awkwardShapeProb = Math.min(1f, awkwardShapeProb + 0.4f);
+            }
+            default -> {
+                // Boss defeated
+            }
         }
+
         return new StageConfig(
             config.getStageNumber(), config.getGridCols(), config.getGridRows(),
             traps, trayCapacity, trashSlots, timerMultiplier,
-            config.getAwkwardShapeProbability(), config.getRandomSeed(),
+            awkwardShapeProb, config.getRandomSeed(),
             config.hasPrefilledItem(), config.getSpecialShelfRow(), config.getSpecialShelfMaxWeight()
         );
     }
@@ -393,6 +488,11 @@ public class GameController {
         }
         if (gameState.getCurrentPhase() != GamePhase.PLAYING) {
             return;
+        }
+
+        // Update event card (e.g., Power Outage timer)
+        if (currentEventCard != null) {
+            currentEventCard.update(deltaTime);
         }
 
         gameState.getFridge().update(deltaTime);
@@ -444,21 +544,35 @@ public class GameController {
         }
     }
 
-    public void selectTrayItem(Item item) {
+    public void selectTrayItem(Item item, boolean holdShift) {
         if (gameState.getCurrentPhase() != GamePhase.PLAYING) {
             return;
         }
         Tray tray = gameState.getTray();
         if (tray.getSelectedItem() == item) {
-            tray.clearSelection();
+            // When holding Shift, keep the item selected instead of toggling off
+            if (!holdShift) {
+                tray.clearSelection();
+            }
         } else {
             tray.selectItem(item);
+            // Reveal mystery box item when selected
+            if (currentEventCard instanceof MysteryBoxEventCard mysteryBox) {
+                if (mysteryBox.getMysteryItem() == item) {
+                    mysteryBox.revealItem();
+                    gameState.notifyWarningMessage("Mystery revealed: " + item.getDisplayName() + "!");
+                }
+            }
         }
     }
 
-    public void handleFridgeLeftClick(GridPosition clickedPosition) {
+    public void selectTrayItem(Item item) {
+        selectTrayItem(item, false);
+    }
+
+    public boolean handleFridgeLeftClick(GridPosition clickedPosition) {
         if (gameState.getCurrentPhase() != GamePhase.PLAYING || clickedPosition == null) {
-            return;
+            return false;
         }
         Tray tray = gameState.getTray();
         Fridge fridge = gameState.getFridge();
@@ -469,32 +583,37 @@ public class GameController {
             if (existing != null) {
                 if (existing.isTrap() || !existing.isConfirmed()) {
                     pickupItemFromFridge(existing);
+                    return true;
                 } else if (gameState.getActivePowerUps().isShelfRailsEnabled() && !shelfRailUsed) {
                     shelfRailUsed = true;
                     pickupItemFromFridge(existing);
                     gameState.notifyWarningMessage(
                         "Shelf Rails used: rethink the placement while keeping food safely separated."
                     );
+                    return true;
                 } else {
                     gameState.notifyWarningMessage(existing.getDisplayName() + " is locked in place!");
+                    return false;
                 }
             }
-            return;
+            return false;
         }
 
         Item occupantAtClick = fridge.getItemAt(clickedPosition);
         if (occupantAtClick != null && occupantAtClick.isTrap()) {
             pickupItemFromFridge(occupantAtClick);
-            return;
+            return true;
         }
 
         try {
             attemptPlaceSelectedItem(selected, clickedPosition);
+            return true;
         } catch (InvalidPlacementException e) {
             if (currentStageContract == StageContract.CLEAN_HANDLING) {
                 stageContractComplete = false;
             }
             gameState.notifyWarningMessage(e.getMessage());
+            return false;
         }
     }
 
@@ -580,6 +699,21 @@ public class GameController {
         gameState.getTray().removeActiveItem(selected);
         gameState.getUndoStack().push(new PlacementAction(selected, targetPos));
 
+        // Check synergy event bonuses
+        if (currentEventCard != null && !selected.isTrap()) {
+            if (currentEventCard instanceof ColdChainEventCard coldChain) {
+                float bonus = coldChain.checkPlacementBonus(selected, gameState);
+                if (bonus > 0f) {
+                    gameState.notifyWarningMessage("Cold Chain bonus: +" + bonus + "s to adjacent items!");
+                }
+            } else if (currentEventCard instanceof ProduceClusterEventCard produceCluster) {
+                float bonus = produceCluster.checkPlacementBonus(selected, gameState);
+                if (bonus > 0f) {
+                    gameState.notifyWarningMessage("Produce Cluster bonus: +" + bonus + "s to adjacent vegetables!");
+                }
+            }
+        }
+
         warnIfTrashPlaced(selected);
         checkWinAfterAction();
     }
@@ -592,20 +726,20 @@ public class GameController {
         }
     }
 
-    public void undoLastPlacement() {
+    public boolean undoLastPlacement() {
         if (gameState.getCurrentPhase() != GamePhase.PLAYING) {
-            return;
+            return false;
         }
         Optional<PlacementAction> next = gameState.getUndoStack().peek();
         if (next.isEmpty()) {
             gameState.notifyWarningMessage("No unconfirmed placement to undo.");
-            return;
+            return false;
         }
         PlacementAction action = next.get();
         Item item = action.getItem();
         if (item.isConfirmed()) {
             gameState.notifyWarningMessage("Placement is already locked!");
-            return;
+            return false;
         }
         gameState.getUndoStack().pop();
         gameState.getFridge().removeItem(item);
@@ -623,6 +757,7 @@ public class GameController {
                     + getUndoCountUntilLifeLoss() + " undo(s) until the next life is used."
             );
         }
+        return true;
     }
 
     public int getUndoCountUntilLifeLoss() {
@@ -651,9 +786,9 @@ public class GameController {
         }
     }
 
-    public void trashSelectedItem() {
+    public boolean trashSelectedItem() {
         if (gameState.getCurrentPhase() != GamePhase.PLAYING) {
-            return;
+            return false;
         }
         Tray tray = gameState.getTray();
         TrashBin trashBin = gameState.getTrashBin();
@@ -661,7 +796,7 @@ public class GameController {
 
         if (selected == null) {
             gameState.notifyWarningMessage("Select a trap item first, then click the Trash Bin!");
-            return;
+            return false;
         }
         if (!selected.isTrap()) {
             if (currentStageContract == StageContract.CLEAN_HANDLING) {
@@ -670,7 +805,7 @@ public class GameController {
             gameState.notifyWarningMessage(
                 "Do not throw fresh food away: it wastes food. Only trap items belong in the bin."
             );
-            return;
+            return false;
         }
 
         try {
@@ -680,18 +815,20 @@ public class GameController {
 
             gameState.notifyWarningMessage("Trashed " + selected.getDisplayName() + "!");
             checkWinAfterAction();
+            return true;
         } catch (InvalidPlacementException e) {
             gameState.notifyWarningMessage(e.getMessage());
+            return false;
         }
     }
 
-    public void activateManualDeepFreeze() {
+    public boolean activateManualDeepFreeze() {
         if (gameState.getCurrentPhase() != GamePhase.PLAYING) {
-            return;
+            return false;
         }
         if (gameState.getActivePowerUps().getDeepFreezeCharges() <= 0) {
             gameState.notifyWarningMessage("No Deep Freeze charges available!");
-            return;
+            return false;
         }
         Item target = gameState.getTray().getSelectedItem();
         if (target == null) {
@@ -700,24 +837,27 @@ public class GameController {
         if (target != null && gameState.getActivePowerUps().consumeDeepFreezeCharge()) {
             target.applyDeepFreeze(3.0f);
             gameState.notifyWarningMessage("Deep Freeze paused " + target.getDisplayName() + " for 3s!");
+            return true;
         }
+        return false;
     }
 
-    public void activateFifoCaddy() {
+    public boolean activateFifoCaddy() {
         if (gameState.getCurrentPhase() != GamePhase.PLAYING
             || !gameState.getActivePowerUps().isFifoCaddyEnabled()) {
-            return;
+            return false;
         }
         Item urgent = gameState.getTray().findMostUrgentItem();
         if (urgent == null || !gameState.getActivePowerUps().consumeFifoCaddyCharge()) {
             gameState.notifyWarningMessage("The FIFO Caddy has no charge left this stage.");
-            return;
+            return false;
         }
         urgent.applyDeepFreeze(4f);
         gameState.notifyWarningMessage(
             "FIFO Caddy paused " + urgent.getDisplayName()
                 + ". A short pause gives you time to plan its safe placement."
         );
+        return true;
     }
 
     public void rotateSelectedItem() {
@@ -748,7 +888,8 @@ public class GameController {
         }
         int choiceIndex = currentPowerUpChoices.indexOf(chosenPowerUp);
         if (choiceIndex < 0 || (phase == GamePhase.MAP_SELECTION
-            && choiceIndex >= currentMapNodeIndexes.size())) {
+            && (choiceIndex >= currentMapNodeIndexes.size()
+                || choiceIndex >= currentRouteRoomTypes.size()))) {
             return;
         }
         chosenPowerUp.apply(gameState);
@@ -768,10 +909,29 @@ public class GameController {
         }
         if (nextStage == ProgressiveDifficultyStrategy.FINAL_STAGE) {
             gameState.setCurrentStageNumber(nextStage);
-            gameState.setCurrentPhase(GamePhase.BOSS_INTRO);
+            // Create the pre-boss event card with the run seed
+            preBossEventCard = new PreBossEventCard(runSeed);
+            gameState.setCurrentPhase(GamePhase.PRE_BOSS_EVENT);
         } else {
             startStage(nextStage);
         }
+    }
+
+    /**
+     * Called when the player confirms their choice on the pre-boss event screen.
+     * Applies the selected choice and transitions to the boss intro.
+     */
+    public void confirmPreBossEvent() {
+        if (gameState.getCurrentPhase() != GamePhase.PRE_BOSS_EVENT || preBossEventCard == null) {
+            return;
+        }
+        preBossEventCard.applySelectedChoice(gameState);
+        preBossEventCard = null;
+        gameState.setCurrentPhase(GamePhase.BOSS_INTRO);
+    }
+
+    public PreBossEventCard getPreBossEventCard() {
+        return preBossEventCard;
     }
 
     public void startBossStage() {
@@ -891,18 +1051,22 @@ public class GameController {
 
     public String getBossPhaseTitle() {
         return switch (bossHealth) {
-            case 3 -> "RUSH ORDER";
-            case 2 -> "CROWDED TRAY";
-            case 1 -> "TRAP WAVE";
+            case 5 -> "RUSH ORDER";
+            case 4 -> "CROWDED TRAY";
+            case 3 -> "TRAP WAVE";
+            case 2 -> "OVERSTOCKED";
+            case 1 -> "FINAL STAND";
             default -> "BOSS DEFEATED";
         };
     }
 
     public String getBossPhaseDescription() {
         return switch (bossHealth) {
-            case 3 -> "Telegraphed: groceries start with 22% less preparation time.";
-            case 2 -> "Telegraphed: one fewer grocery is visible in the tray at once.";
-            case 1 -> "Telegraphed: one extra trap joins the final sort. Keep waste out of the fridge.";
+            case 5 -> "Telegraphed: groceries start with 30% less time and more awkward shapes. Prioritize the most perishable!";
+            case 4 -> "Telegraphed: reduced tray capacity and faster timers. Plan your placement carefully!";
+            case 3 -> "Telegraphed: extra traps join the sort. Keep waste out of the fridge — check labels!";
+            case 2 -> "Telegraphed: even tighter space with more traps and awkward shapes. Every tile counts!";
+            case 1 -> "Telegraphed: everything at once — maximum traps, fastest timers, most awkward shapes. Hold the line!";
             default -> "The fridge is safe.";
         };
     }
@@ -948,6 +1112,15 @@ public class GameController {
     }
 
     public Set<String> getUnlockedPowerUpIds() {
+        if (Gdx.app == null) {
+            Set<String> unlocked = new LinkedHashSet<>(STARTING_POWER_UP_IDS);
+            unlocked.addAll(List.of(
+                "efficient_packer", "trap_scout", "cold_snap_upgrade",
+                "fifo_caddy", "shelf_rails", "deep_freeze_upgrade",
+                "reusable_containers", "produce_saver_upgrade"
+            ));
+            return Set.copyOf(unlocked);
+        }
         Preferences profile = Gdx.app.getPreferences("fill-the-fridge-profile");
         Set<String> unlocked = new LinkedHashSet<>(STARTING_POWER_UP_IDS);
         unlocked.addAll(parseStrings(profile.getString("unlockedPowerUps", "")));
@@ -971,6 +1144,9 @@ public class GameController {
     }
 
     private void recordRunProgress() {
+        if (Gdx.app == null) {
+            return;
+        }
         Preferences profile = Gdx.app.getPreferences("fill-the-fridge-profile");
         int previousBestStage = profile.getInteger("bestStage", 1);
         profile.putInteger("bestStage", Math.max(previousBestStage, gameState.getCurrentStageNumber()));
@@ -1007,5 +1183,34 @@ public class GameController {
 
     public int getBossHealth() {
         return bossHealth;
+    }
+
+    public EventCard getCurrentEventCard() {
+        return currentEventCard;
+    }
+
+    private FridgeLayout selectFridgeLayout(int stageNumber) {
+        // Early stages: mostly standard layout
+        // Later stages: more variety with irregular layouts
+        float irregularChance;
+        if (stageNumber <= 2) {
+            irregularChance = 0f;
+        } else if (stageNumber <= 5) {
+            irregularChance = 0.25f;
+        } else {
+            irregularChance = 0.5f;
+        }
+
+        if (ThreadLocalRandom.current().nextFloat() >= irregularChance) {
+            return FridgeLayout.STANDARD;
+        }
+
+        // Choose from non-standard layouts
+        FridgeLayout[] irregularLayouts = {
+            FridgeLayout.MINI,
+            FridgeLayout.RETRO,
+            FridgeLayout.SIDE_BY_SIDE
+        };
+        return irregularLayouts[ThreadLocalRandom.current().nextInt(irregularLayouts.length)];
     }
 }

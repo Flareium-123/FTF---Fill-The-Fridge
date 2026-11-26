@@ -25,6 +25,8 @@ dependencies {
     implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
     runtimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
     runtimeOnly "com.badlogicgames.gdx:gdx-freetype-platform:${gdxVersion}:natives-desktop"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
 }
 
 application {
@@ -42,4 +44,8 @@ tasks.named('run', JavaExec) {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }

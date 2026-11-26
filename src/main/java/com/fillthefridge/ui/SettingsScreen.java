@@ -15,6 +15,7 @@ import com.fillthefridge.settings.GameSettings;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class SettingsScreen extends BaseScreen {
     private static final Rectangle BACK_BUTTON = new Rectangle(470f, 45f, 340f, 56f);
@@ -29,11 +30,17 @@ public class SettingsScreen extends BaseScreen {
     private int selectedResolution;
     private String statusMessage = "";
     private boolean waitingForUndoKey;
+    private final Supplier<BaseScreen> returnTarget;
 
     public SettingsScreen(FillTheFridgeGame game) {
+        this(game, () -> new MainMenuScreen(game));
+    }
+
+    public SettingsScreen(FillTheFridgeGame game, Supplier<BaseScreen> returnTarget) {
         super(game);
         resolutions = availableResolutions();
         selectedResolution = findSelectedResolution(game.getSettings());
+        this.returnTarget = returnTarget;
     }
 
     @Override
@@ -43,7 +50,7 @@ public class SettingsScreen extends BaseScreen {
         if (waitingForUndoKey) {
             captureUndoKey();
         } else if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            transitionTo(new MainMenuScreen(game));
+            transitionTo(returnTarget.get());
         } else if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
             handleClick(mouse.x, mouse.y);
         }
@@ -130,7 +137,7 @@ public class SettingsScreen extends BaseScreen {
     private void handleClick(float x, float y) {
         if (BACK_BUTTON.contains(x, y)) {
             game.getAudioFeedback().playClick();
-            transitionTo(new MainMenuScreen(game));
+            transitionTo(returnTarget.get());
         } else if (UNDO_KEY_BINDING.contains(x, y)) {
             game.getAudioFeedback().playClick();
             waitingForUndoKey = true;

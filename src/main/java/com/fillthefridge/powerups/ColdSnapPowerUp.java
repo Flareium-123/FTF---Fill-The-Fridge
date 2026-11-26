@@ -17,7 +17,9 @@ public class ColdSnapPowerUp extends PowerUp {
     @Override
     public void apply(GameState gameState) {
         gameState.getActivePowerUps().addColdSnapBonus(2.0f);
-        gameState.getTray().addBonusTimeToAll(2.0f);
+        if (gameState.getCurrentPhase() == com.fillthefridge.model.GamePhase.PLAYING) {
+            gameState.getTray().addBonusTimeToAll(2.0f);
+        }
         gameState.getActivePowerUps().recordPowerUp(this);
     }
 }

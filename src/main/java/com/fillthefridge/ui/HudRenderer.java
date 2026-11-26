@@ -39,6 +39,12 @@ public class HudRenderer {
     private float lifeLossShakeTimer;
     private float uiClock;
 
+    // Reusable instances to avoid per-frame GC pressure
+    private final Color tempColor1 = new Color();
+    private final Color tempColor2 = new Color();
+    private final GlyphLayout tempLayout = new GlyphLayout();
+    private final GlyphLayout tempLayout2 = new GlyphLayout();
+
     public HudRenderer() {
         this.traySlotBounds = new ArrayList<>();
         this.confirmButtonBounds = new Rectangle(1015f, 544f, 225f, 48f);
@@ -150,9 +156,8 @@ public class HudRenderer {
         shapeRenderer.rect(0f, 652f, 1280f, 1f);
 
         boolean menuHover = menuButtonBounds.contains(mouseX, mouseY);
-        shapeRenderer.setColor(
-                menuHover ? new Color(0.23f, 0.34f, 0.44f, 0.96f) : new Color(0.10f, 0.17f, 0.24f, 0.88f)
-        );
+        tempColor1.set(menuHover ? 0.23f : 0.10f, menuHover ? 0.34f : 0.17f, menuHover ? 0.44f : 0.24f, menuHover ? 0.96f : 0.88f);
+        shapeRenderer.setColor(tempColor1);
         ProceduralFridgeRenderer.drawRoundedRect(
                 shapeRenderer,
                 menuButtonBounds.x,
@@ -221,12 +226,13 @@ public class HudRenderer {
         }
         String powerSummary = "POWER-UPS " + powerUps.getAcquiredPowerUps().size()
                 + (tags.isEmpty() ? "   Earn upgrades on the route map." : "   " + String.join("   ", tags));
-        GlyphLayout powerSummaryLayout = new GlyphLayout(smallFont, powerSummary);
         float originalScaleX = smallFont.getData().scaleX;
         float originalScaleY = smallFont.getData().scaleY;
-        float summaryScale = Math.min(1f, 650f / Math.max(1f, powerSummaryLayout.width));
+        tempLayout.setText(smallFont, powerSummary);
+        float summaryScale = Math.min(1f, 650f / Math.max(1f, tempLayout.width));
         if (summaryScale < 1f) {
             smallFont.getData().setScale(originalScaleX * summaryScale, originalScaleY * summaryScale);
+            tempLayout.setText(smallFont, powerSummary);
         }
         smallFont.setColor(0.92f, 0.96f, 1.0f, 1f);
         smallFont.draw(batch, powerSummary, 468f, 699f);
@@ -253,9 +259,12 @@ public class HudRenderer {
         objectiveParts.addAll(stageRules);
         if (!objectiveParts.isEmpty()) {
             String objectiveText = String.join("  |  ", objectiveParts);
-            GlyphLayout objectiveLayout = new GlyphLayout(smallFont, objectiveText);
-            float objectiveScale = Math.min(1f, 1080f / Math.max(1f, objectiveLayout.width));
-            smallFont.getData().setScale(originalScaleX * objectiveScale, originalScaleY * objectiveScale);
+            tempLayout.setText(smallFont, objectiveText);
+            float objectiveScale = Math.min(1f, 1080f / Math.max(1f, tempLayout.width));
+            if (objectiveScale < 1f) {
+                smallFont.getData().setScale(originalScaleX * objectiveScale, originalScaleY * objectiveScale);
+                tempLayout.setText(smallFont, objectiveText);
+            }
             smallFont.setColor(0.88f, 0.91f, 0.84f, 1f);
             smallFont.draw(batch, objectiveText, 28f, 660f);
             smallFont.getData().setScale(originalScaleX, originalScaleY);
@@ -273,11 +282,13 @@ public class HudRenderer {
         float h = trashBin.getHeight();
 
         boolean highlightTrash = selectedItem != null && selectedItem.isTrap();
-        Color bgColor = trashBin.isHovered()
-                ? new Color(0.18f, 0.30f, 0.42f, 0.92f)
-                : new Color(0.07f, 0.12f, 0.17f, 0.84f);
-
-        shapeRenderer.setColor(bgColor);
+        tempColor1.set(
+            trashBin.isHovered() ? 0.18f : 0.07f,
+            trashBin.isHovered() ? 0.30f : 0.12f,
+            trashBin.isHovered() ? 0.42f : 0.17f,
+            trashBin.isHovered() ? 0.92f : 0.84f
+        );
+        shapeRenderer.setColor(tempColor1);
         ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, x, y, w, h, 18f);
 
         if (highlightTrash) {
@@ -304,35 +315,38 @@ public class HudRenderer {
         float iconY = trashBin.getY() + 66f;
         batch.draw(trashTex, iconX, iconY, iconSize, iconSize);
 
-        GlyphLayout titleLayout = new GlyphLayout(bodyFont, "TRASH BIN");
+        tempLayout.setText(bodyFont, "TRASH BIN");
         bodyFont.setColor(Color.WHITE);
         bodyFont.draw(
                 batch,
                 "TRASH BIN",
-                trashBin.getX() + (trashBin.getWidth() - titleLayout.width) * 0.5f,
+                trashBin.getX() + (trashBin.getWidth() - tempLayout.width) * 0.5f,
                 trashBin.getY() + 194f
         );
 
         String slotStr = "Slots: " + trashBin.getUsedSlots() + " / " + trashBin.getMaxSlots();
-        GlyphLayout slotLayout = new GlyphLayout(smallFont, slotStr);
-        Color slotColor = trashBin.hasAvailableSlot()
-                ? new Color(0.55f, 0.95f, 0.62f, 1f)
-                : new Color(1.0f, 0.45f, 0.45f, 1f);
-        smallFont.setColor(slotColor);
+        tempLayout.setText(smallFont, slotStr);
+        tempColor1.set(
+            trashBin.hasAvailableSlot() ? 0.55f : 1.0f,
+            trashBin.hasAvailableSlot() ? 0.95f : 0.45f,
+            trashBin.hasAvailableSlot() ? 0.62f : 0.45f,
+            1f
+        );
+        smallFont.setColor(tempColor1);
         smallFont.draw(
                 batch,
                 slotStr,
-                trashBin.getX() + (trashBin.getWidth() - slotLayout.width) * 0.5f,
+                trashBin.getX() + (trashBin.getWidth() - tempLayout.width) * 0.5f,
                 trashBin.getY() + 46f
         );
 
         String hintStr = "Click to Trash";
-        GlyphLayout hintLayout = new GlyphLayout(smallFont, hintStr);
+        tempLayout.setText(smallFont, hintStr);
         smallFont.setColor(0.78f, 0.86f, 0.96f, 1f);
         smallFont.draw(
                 batch,
                 hintStr,
-                trashBin.getX() + (trashBin.getWidth() - hintLayout.width) * 0.5f,
+                trashBin.getX() + (trashBin.getWidth() - tempLayout.width) * 0.5f,
                 trashBin.getY() + 24f
         );
         smallFont.setColor(Color.WHITE);
@@ -347,16 +361,23 @@ public class HudRenderer {
             Rectangle slot = traySlotBounds.get(i);
             Item item = activeItems.get(i);
 
-            Color cardColor = item.isHovered() || item.isSelected()
-                    ? new Color(0.12f, 0.17f, 0.20f, 0.94f)
-                    : new Color(0.07f, 0.11f, 0.15f, 0.86f);
-            shapeRenderer.setColor(cardColor);
+            boolean cardHover = item.isHovered() || item.isSelected();
+            tempColor1.set(
+                cardHover ? 0.12f : 0.07f,
+                cardHover ? 0.17f : 0.11f,
+                cardHover ? 0.20f : 0.15f,
+                cardHover ? 0.94f : 0.86f
+            );
+            shapeRenderer.setColor(tempColor1);
             ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, slot.x, slot.y, slot.width, slot.height, 10f);
 
-            Color edgeColor = item.isSelected()
-                    ? new Color(0.98f, 0.76f, 0.16f, 0.96f)
-                    : new Color(0.56f, 0.77f, 0.91f, item.isHovered() ? 0.92f : 0.54f);
-            shapeRenderer.setColor(edgeColor);
+            tempColor1.set(
+                item.isSelected() ? 0.98f : 0.56f,
+                item.isSelected() ? 0.76f : 0.77f,
+                item.isSelected() ? 0.16f : 0.91f,
+                item.isSelected() ? 0.96f : (item.isHovered() ? 0.92f : 0.54f)
+            );
+            shapeRenderer.setColor(tempColor1);
             shapeRenderer.rect(slot.x, slot.y + slot.height - 2f, slot.width, 2f);
             shapeRenderer.rect(slot.x, slot.y, slot.width, 2f);
             shapeRenderer.rect(slot.x, slot.y, 2f, slot.height);
@@ -430,16 +451,16 @@ public class HudRenderer {
                     1.0f
             );
 
-            GlyphLayout nameLayout = new GlyphLayout(smallFont, item.getDisplayName());
+            tempLayout.setText(smallFont, item.getDisplayName());
             float originalScaleX = smallFont.getData().scaleX;
             float originalScaleY = smallFont.getData().scaleY;
-            float nameScale = Math.min(1f, (slot.width - 16f) / nameLayout.width);
+            float nameScale = Math.min(1f, (slot.width - 16f) / tempLayout.width);
             smallFont.getData().setScale(originalScaleX * nameScale, originalScaleY * nameScale);
             smallFont.setColor(0.94f, 0.96f, 0.98f, 1f);
             smallFont.draw(
                     batch,
                     item.getDisplayName(),
-                    slot.x + (slot.width - nameLayout.width * nameScale) * 0.5f,
+                    slot.x + (slot.width - tempLayout.width * nameScale) * 0.5f,
                     slot.y + 36f
             );
             smallFont.getData().setScale(originalScaleX, originalScaleY);
@@ -511,9 +532,13 @@ public class HudRenderer {
             float mouseY
     ) {
         boolean confirmHover = confirmButtonBounds.contains(mouseX, mouseY);
-        shapeRenderer.setColor(
-                confirmHover ? new Color(0.19f, 0.56f, 0.39f, 0.97f) : new Color(0.12f, 0.40f, 0.29f, 0.92f)
+        tempColor1.set(
+            confirmHover ? 0.19f : 0.12f,
+            confirmHover ? 0.56f : 0.40f,
+            confirmHover ? 0.39f : 0.29f,
+            confirmHover ? 0.97f : 0.92f
         );
+        shapeRenderer.setColor(tempColor1);
         ProceduralFridgeRenderer.drawRoundedRect(
                 shapeRenderer,
                 confirmButtonBounds.x,
@@ -524,9 +549,13 @@ public class HudRenderer {
         );
 
         boolean undoHover = undoButtonBounds.contains(mouseX, mouseY);
-        shapeRenderer.setColor(
-                undoHover ? new Color(0.31f, 0.39f, 0.46f, 0.97f) : new Color(0.16f, 0.23f, 0.30f, 0.90f)
+        tempColor1.set(
+            undoHover ? 0.31f : 0.16f,
+            undoHover ? 0.39f : 0.23f,
+            undoHover ? 0.46f : 0.30f,
+            undoHover ? 0.97f : 0.90f
         );
+        shapeRenderer.setColor(tempColor1);
         ProceduralFridgeRenderer.drawRoundedRect(
                 shapeRenderer,
                 undoButtonBounds.x,
@@ -538,10 +567,17 @@ public class HudRenderer {
 
         int freezeCharges = gameState.getActivePowerUps().getDeepFreezeCharges();
         boolean freezeHover = freezeButtonBounds.contains(mouseX, mouseY) && freezeCharges > 0;
-        Color freezeColor = freezeCharges > 0
-                ? (freezeHover ? new Color(0.20f, 0.48f, 0.62f, 0.97f) : new Color(0.12f, 0.31f, 0.42f, 0.92f))
-                : new Color(0.12f, 0.16f, 0.20f, 0.78f);
-        shapeRenderer.setColor(freezeColor);
+        if (freezeCharges > 0) {
+            tempColor1.set(
+                freezeHover ? 0.20f : 0.12f,
+                freezeHover ? 0.48f : 0.31f,
+                freezeHover ? 0.62f : 0.42f,
+                freezeHover ? 0.97f : 0.92f
+            );
+        } else {
+            tempColor1.set(0.12f, 0.16f, 0.20f, 0.78f);
+        }
+        shapeRenderer.setColor(tempColor1);
         ProceduralFridgeRenderer.drawRoundedRect(
                 shapeRenderer,
                 freezeButtonBounds.x,
@@ -553,6 +589,8 @@ public class HudRenderer {
 
         shapeRenderer.setColor(0.035f, 0.065f, 0.10f, 0.82f);
         ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 1015f, 224f, 225f, 182f, 10f);
+        shapeRenderer.setColor(0.035f, 0.065f, 0.10f, 0.82f);
+        ProceduralFridgeRenderer.drawRoundedRect(shapeRenderer, 1015f, 186f, 225f, 32f, 8f);
     }
 
     private void renderSideActionButtonsText(
@@ -587,38 +625,54 @@ public class HudRenderer {
         smallFont.draw(batch, "CONTROLS & RULES", 1042f, 386f);
 
         smallFont.setColor(0.86f, 0.92f, 0.98f, 1f);
-        smallFont.draw(batch, "L-Click: Select / Place", 1032f, 358f);
-        smallFont.draw(batch, "Undo: button / " + undoKeyLabel + " / R-Click", 1032f, 334f);
-        smallFont.draw(batch, "1 life per 3 undos", 1032f, 310f);
-        smallFont.draw(batch, "Space: Lock placements", 1032f, 286f);
-        smallFont.draw(batch, "Trash Bin: Trash traps", 1032f, 262f);
+        smallFont.draw(batch, "L-Click: Select / Place", 1032f, 362f);
+        smallFont.draw(batch, "Undo: button / " + undoKeyLabel + " / R-Click", 1032f, 340f);
+        smallFont.draw(batch, "1 life per 3 undos", 1032f, 318f);
+        smallFont.draw(batch, "Space: Lock placements", 1032f, 296f);
+        smallFont.draw(batch, "Trash Bin: Trash traps", 1032f, 274f);
         ActivePowerUps activePowerUps = gameState.getActivePowerUps();
         if (activePowerUps.isFifoCaddyEnabled()) {
             smallFont.draw(batch, "C: Pause urgent food (" + activePowerUps.getFifoCaddyCharges() + ")",
-                    1032f, 238f);
+                    1032f, 252f);
         }
         if (activePowerUps.isReusableContainersEnabled()) {
-            smallFont.draw(batch, "R: Rotate selected grocery", 1032f, 214f);
+            smallFont.draw(batch, "R: Rotate selected grocery", 1032f, 232f);
         } else if (activePowerUps.isShelfRailsEnabled()) {
-            smallFont.draw(batch, "Click locked food: Shelf Rails", 1032f, 214f);
+            smallFont.draw(batch, "Click locked food: Shelf Rails", 1032f, 232f);
         }
 
         Item selected = gameState.getTray().getSelectedItem();
+        String statusText;
+        Color statusColor;
         if (selected != null && hoverGridPos != null) {
             PlacementResult eval = gameState.getFridge().evaluatePlacement(selected, hoverGridPos);
-            if (eval == PlacementResult.LEGAL) {
-                smallFont.setColor(0.35f, 0.96f, 0.52f, 1f);
-            } else {
-                smallFont.setColor(1.0f, 0.42f, 0.42f, 1f);
-            }
-            smallFont.draw(batch, "Preview: " + eval.name(), 1032f, 252f);
+            tempColor1.set(
+                eval == PlacementResult.LEGAL ? 0.35f : 1.0f,
+                eval == PlacementResult.LEGAL ? 0.96f : 0.42f,
+                eval == PlacementResult.LEGAL ? 0.52f : 0.42f,
+                1f
+            );
+            statusColor = tempColor1;
+            statusText = "Preview: " + eval.name();
         } else if (selected != null) {
-            smallFont.setColor(0.65f, 0.90f, 1.0f, 1f);
-            smallFont.draw(batch, "Holding: " + selected.getDisplayName(), 1032f, 252f);
+            tempColor1.set(0.65f, 0.90f, 1.0f, 1f);
+            statusColor = tempColor1;
+            statusText = "Holding: " + selected.getDisplayName();
         } else {
-            smallFont.setColor(0.72f, 0.78f, 0.86f, 1f);
-            smallFont.draw(batch, "Select a tray item!", 1032f, 252f);
+            tempColor1.set(0.72f, 0.78f, 0.86f, 1f);
+            statusColor = tempColor1;
+            statusText = "Select a tray item!";
         }
+        TextLayoutHelper.drawFittedAtBaseline(
+                batch,
+                smallFont,
+                statusText,
+                1025f,
+                206f,
+                205f,
+                statusColor,
+                Align.center
+        );
         smallFont.setColor(Color.WHITE);
     }
 
@@ -636,8 +690,8 @@ public class HudRenderer {
         float alpha = Math.min(1f, bannerTimer * 2.5f);
         bodyFont.setColor(bannerColor.r, bannerColor.g, bannerColor.b, alpha);
 
-        GlyphLayout layout = new GlyphLayout(bodyFont, bannerMessage);
-        float textX = 640f - layout.width * 0.5f;
+        tempLayout.setText(bodyFont, bannerMessage);
+        float textX = 640f - tempLayout.width * 0.5f;
         bodyFont.draw(batch, bannerMessage, textX, 630f);
         bodyFont.setColor(Color.WHITE);
     }
@@ -694,14 +748,14 @@ public class HudRenderer {
             BitmapFont subtitleFont = assetManager.getSubtitleFont();
 
             String headline = "STAGE " + stageNumber + " CLEARED!";
-            GlyphLayout hlLayout = new GlyphLayout(titleFont, headline);
+            tempLayout.setText(titleFont, headline);
             titleFont.setColor(0.98f, 0.90f, 0.25f, 1f);
-            titleFont.draw(batch, headline, 640f - hlLayout.width * 0.5f, 395f);
+            titleFont.draw(batch, headline, 640f - tempLayout.width * 0.5f, 395f);
 
             String sub = "Every fridge tile packed to perfection!";
-            GlyphLayout subLayout = new GlyphLayout(subtitleFont, sub);
+            tempLayout2.setText(subtitleFont, sub);
             subtitleFont.setColor(Color.WHITE);
-            subtitleFont.draw(batch, sub, 640f - subLayout.width * 0.5f, 338f);
+            subtitleFont.draw(batch, sub, 640f - tempLayout2.width * 0.5f, 338f);
             batch.end();
         }
     }

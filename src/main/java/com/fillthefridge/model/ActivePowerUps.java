@@ -25,6 +25,14 @@ public class ActivePowerUps {
     private float nextStageTimerBonus;
     private float nextStageTimerPenalty;
     private int fifoCaddyCharges;
+    private boolean pendingInitialDeepFreeze;
+    // Pre-boss event effects
+    private boolean doubleTrapDamage;
+    private float meatTimerBonus;
+    private float dairyTimerPenalty;
+    private int extraUndoActions;
+    private int bossExtraHp;
+    private int trayCapacityPenalty;
     private final List<PowerUp> acquiredPowerUps;
 
     public ActivePowerUps() {
@@ -59,6 +67,16 @@ public class ActivePowerUps {
 
     public int getDeepFreezeCharges() {
         return deepFreezeCharges;
+    }
+
+    public void setPendingInitialDeepFreeze(boolean pending) {
+        this.pendingInitialDeepFreeze = pending;
+    }
+
+    public boolean consumePendingInitialDeepFreeze() {
+        boolean pending = pendingInitialDeepFreeze;
+        pendingInitialDeepFreeze = false;
+        return pending;
     }
 
     public void setDeepFreezeCharges(int charges) {
@@ -272,6 +290,65 @@ public class ActivePowerUps {
         nextStageTimerBonus = 0f;
         nextStageTimerPenalty = 0f;
         fifoCaddyCharges = 0;
+        pendingInitialDeepFreeze = false;
+        doubleTrapDamage = false;
+        meatTimerBonus = 0f;
+        dairyTimerPenalty = 0f;
+        extraUndoActions = 0;
+        bossExtraHp = 0;
+        trayCapacityPenalty = 0;
         acquiredPowerUps.clear();
+    }
+
+    // --- Pre-boss event effect methods ---
+
+    public void setDoubleTrapDamage(boolean enabled) {
+        this.doubleTrapDamage = enabled;
+    }
+
+    public boolean isDoubleTrapDamage() {
+        return doubleTrapDamage;
+    }
+
+    public void setMeatTimerBonus(float seconds) {
+        this.meatTimerBonus = seconds;
+    }
+
+    public float getMeatTimerBonus() {
+        return meatTimerBonus;
+    }
+
+    public void setDairyTimerPenalty(float seconds) {
+        this.dairyTimerPenalty = seconds;
+    }
+
+    public float getDairyTimerPenalty() {
+        return dairyTimerPenalty;
+    }
+
+    public void addExtraUndoActions(int count) {
+        this.extraUndoActions += count;
+    }
+
+    public int consumeExtraUndoActions() {
+        int actions = extraUndoActions;
+        extraUndoActions = 0;
+        return actions;
+    }
+
+    public void setBossExtraHp(int hp) {
+        this.bossExtraHp = hp;
+    }
+
+    public int getBossExtraHp() {
+        return bossExtraHp;
+    }
+
+    public void setTrayCapacityPenalty(int penalty) {
+        this.trayCapacityPenalty = penalty;
+    }
+
+    public int getTrayCapacityPenalty() {
+        return trayCapacityPenalty;
     }
 }
